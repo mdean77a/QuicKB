@@ -26,6 +26,13 @@ class ChunkerConfig(BaseModel):
     question_output_path: Optional[str] = Field(
         None, description="File path for saving the training dataset (questions)"
     )
+    deduplication: Optional[Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "enabled": True, 
+            "similarity_threshold": 0.85
+        },
+        description="Configuration for question deduplication"
+    )
 
 
 def load_config(config_path: str) -> ChunkerConfig:
@@ -138,10 +145,13 @@ def process_files(config: ChunkerConfig):
         # We only need unique text values
         unique_texts = list(text_to_chunks_map.keys())
 
-        # Create question generator
+        # Create question generator with deduplication settings
+        dedup_config = config.deduplication or {}
         generator = QuestionGenerator(
             prompt_path="src/prompts/question_generation.txt",
-            api_key=os.getenv("OPENAI_API_KEY")  # Make sure your OPENAI_API_KEY is set
+            api_key=os.getenv("OPENAI_API_KEY"),
+            dedup_enabled=dedup_config.get("enabled", True),
+            similarity_threshold=dedup_config.get("similarity_threshold", 0.92)
         )
 
         # Generate questions

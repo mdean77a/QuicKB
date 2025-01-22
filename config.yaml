@@ -46,7 +46,7 @@
 path_to_knowledgebase: "./testing/knowledgebase"
 chunker: "RecursiveTokenChunker"
 chunker_arguments:
-  chunk_size: 2000
+  chunk_size: 400
   chunk_overlap: 0
   separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
   keep_separator: true
@@ -55,4 +55,6 @@ chunker_arguments:
 generate_questions: true
 question_output_path: "./output/train_data.json"
 output_path: "./output/knowledgebase.json"
-
+deduplication:
+  enabled: true
+  similarity_threshold: 0.8
