@@ -16,7 +16,7 @@ class QuestionGenerator:
         api_key: str = None, 
         model: str = "gpt-4o-mini",
         dedup_enabled: bool = True, 
-        similarity_threshold: float = 0.92
+        similarity_threshold: float = 0.85
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
