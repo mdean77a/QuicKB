@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Any
 
-# Correct the import for EmbeddingManager
 from embeddings.base_embedder import EmbeddingManager
 
 class BaseChunker(ABC):

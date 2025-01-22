@@ -1,5 +1,9 @@
+
+# This script is adapted from the chunking_evaluation package, developed by ChromaDB Research.
+# Original code can be found at: https://github.com/brandonstarxel/chunking_evaluation/blob/main/chunking_evaluation/chunking/llm_semantic_chunker.py
+# License: MIT License
+
 from .base_chunker import BaseChunker
-# Fix EmbeddingManager import
 from embeddings.base_embedder import EmbeddingManager
 from .recursive_token_chunker import RecursiveTokenChunker
 import anthropic

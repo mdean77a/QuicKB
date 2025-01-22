@@ -1,4 +1,7 @@
+
 # This script is adapted from the LangChain package, developed by LangChain AI.
+# Original code can be found at: https://github.com/langchain-ai/langchain/blob/master/libs/text-splitters/langchain_text_splitters/base.py
+# chunking_evaluation modification: https://github.com/brandonstarxel/chunking_evaluation/blob/main/chunking_evaluation/chunking/fixed_token_chunker.py
 # License: MIT License
 
 from abc import ABC, abstractmethod

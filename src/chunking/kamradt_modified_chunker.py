@@ -1,3 +1,8 @@
+
+# This script is adapted from the Greg Kamradt's notebook on chunking.
+# Original code can be found at: https://github.com/FullStackRetrieval-com/RetrievalTutorials/blob/main/tutorials/LevelsOfTextSplitting/5_Levels_Of_Text_Splitting.ipynb
+# chunking_evaluation modification: https://github.com/brandonstarxel/chunking_evaluation/blob/main/chunking_evaluation/chunking/kamradt_modified_chunker.py
+
 from typing import Optional, List, Any
 import numpy as np
 from .base_chunker import BaseChunker

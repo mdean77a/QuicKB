@@ -1,3 +1,8 @@
+
+# This script is adapted from the chunking_evaluation package, developed by ChromaDB Research.
+# Original code can be found at: https://github.com/brandonstarxel/chunking_evaluation/blob/main/chunking_evaluation/chunking/cluster_semantic_chunker.py
+# License: MIT License
+
 from .base_chunker import BaseChunker
 from typing import List
 import numpy as np
