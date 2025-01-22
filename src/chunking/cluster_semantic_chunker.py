@@ -1,15 +1,17 @@
 from .base_chunker import BaseChunker
 from typing import List
 import numpy as np
-from .utils import EmbeddingManager
+from ..embeddings.base_embedder import EmbeddingManager
 from .recursive_token_chunker import RecursiveTokenChunker
+from .registry import ChunkerRegistry
 
+@ChunkerRegistry.register("ClusterSemanticChunker")
 class ClusterSemanticChunker(BaseChunker):
     def __init__(self, 
-                 embedding_function=None, 
-                 max_chunk_size=400,
-                 min_chunk_size=50,
-                 length_function=None):
+                embedding_function=None, 
+                max_chunk_size=400,
+                min_chunk_size=50,
+                length_function=None):
         
         self.splitter = RecursiveTokenChunker(
             chunk_size=min_chunk_size,
@@ -26,6 +28,7 @@ class ClusterSemanticChunker(BaseChunker):
         self._chunk_size = max_chunk_size
         self.max_cluster = max_chunk_size // min_chunk_size
         self.length_function = length_function or EmbeddingManager.get_token_counter()
+
 
     def _get_similarity_matrix(self, sentences):
         BATCH_SIZE = 500

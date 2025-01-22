@@ -3,4 +3,4 @@ chunker: "ClusterSemanticChunker"
 chunker_arguments:
   max_chunk_size: 400
   min_chunk_size: 50
-output_path: "./output/chunks.json"
+output_path: "./output/cluster_chunks.json"
