@@ -1,5 +1,6 @@
 from .base_chunker import BaseChunker
-from .utils import EmbeddingManager
+# Fix EmbeddingManager import
+from embeddings.base_embedder import EmbeddingManager
 from .recursive_token_chunker import RecursiveTokenChunker
 import anthropic
 import backoff
@@ -9,8 +10,10 @@ import re
 
 class LLMSemanticChunker(BaseChunker):
     def __init__(self, organisation: str = "openai", api_key: str = None, model_name: str = None):
+        super().__init__()
+
         if organisation == "openai":
-            from openai import OpenAI
+            from openai import OpenAI  # Possibly a custom wrapper
             self.client = OpenAI(api_key=api_key)
             self.model = model_name or "gpt-4o"
             self.organisation = "openai"
@@ -33,13 +36,12 @@ class LLMSemanticChunker(BaseChunker):
             "Chunks are marked with <|start_chunk_X|> tags. Respond with 'split_after: ' "
             "followed by comma-separated chunk numbers where splits should occur."
         )
-        
+
         user_content = (
             f"CHUNKED_TEXT: {chunked_input}\n\n"
             f"Respond with split points (ascending, ≥{current_chunk}). "
             "Include at least one split."
         )
-        
         if invalid_response:
             user_content += (
                 f"\n\\Previous invalid response: {invalid_response}. "
@@ -60,16 +62,16 @@ class LLMSemanticChunker(BaseChunker):
             while current_chunk < len(chunks) - 4:
                 context_window = []
                 token_count = 0
-                
+
                 for i in range(current_chunk, len(chunks)):
                     token_count += EmbeddingManager.get_token_counter()(chunks[i])
                     if token_count > 800:
                         break
                     context_window.append(f"<|start_chunk_{i+1}|>{chunks[i]}<|end_chunk_{i+1}|>")
-                
+
                 response = self._get_llm_response("\n".join(context_window), current_chunk)
                 numbers = self._parse_response(response)
-                
+
                 if numbers:
                     split_indices.extend(numbers)
                     current_chunk = numbers[-1]
@@ -96,7 +98,7 @@ class LLMSemanticChunker(BaseChunker):
                     max_tokens=200,
                     temperature=0.2
                 ).content[0].text
-        
+
         try:
             return _send_request()
         except Exception as e:
@@ -106,6 +108,7 @@ class LLMSemanticChunker(BaseChunker):
     def _parse_response(self, response: str):
         numbers = []
         if 'split_after:' in response:
+            # Grab all numbers after the substring 'split_after:'
             numbers = list(map(int, re.findall(r'\d+', response.split('split_after:')[1])))
         return sorted(n for n in numbers if n >= 0)
 

@@ -1,3 +1,4 @@
+# requirements.txt
 numpy==2.2.2
 tiktoken==0.8.0
 backoff==2.2.1

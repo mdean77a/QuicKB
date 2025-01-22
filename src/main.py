@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Dict, Any
+
 from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
 
@@ -29,16 +30,19 @@ def process_files(config: ChunkerConfig):
         raise
 
     args = config.chunker_arguments.copy()
-    
+
+    # Handle string-based references to embedder / token counters if present
     for key in ['embedding_function', 'length_function']:
         if key in args and isinstance(args[key], str):
-            resolver = EmbeddingManager.get_embedder if 'embedding' in key else EmbeddingManager.get_token_counter
+            resolver = (EmbeddingManager.get_embedder
+                        if 'embedding' in key else
+                        EmbeddingManager.get_token_counter)
             args[key] = resolver(args[key])
-    
+
     chunker = chunker_class(**args)
     base_path = Path(config.path_to_knowledgebase)
     results = []
-    
+
     for file_path in base_path.rglob('*.txt'):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -55,7 +59,7 @@ def process_files(config: ChunkerConfig):
 
     output_path = Path(config.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
