@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional
-from openai import OpenAI  # Potentially a custom wrapper or direct openai usage
+from openai import OpenAI
 
 class OpenAIEmbedder:
     def __init__(
