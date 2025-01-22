@@ -5,6 +5,7 @@ import backoff
 from openai import OpenAI
 from tqdm import tqdm
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .deduplicator import QuestionDeduplicator
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,8 @@ class QuestionGenerator:
         api_key: str = None, 
         model: str = "gpt-4o-mini",
         dedup_enabled: bool = True, 
-        similarity_threshold: float = 0.85
+        similarity_threshold: float = 0.85,
+        max_workers: int = 10  # Number of parallel workers
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
@@ -24,6 +26,7 @@ class QuestionGenerator:
         self._question_cache: Dict[str, List[Dict]] = {}
         self.dedup_enabled = dedup_enabled
         self.deduplicator = QuestionDeduplicator(similarity_threshold) if dedup_enabled else None
+        self.max_workers = max_workers
 
     def _load_prompt(self, path: str) -> str:
         with open(path, 'r') as f:
@@ -51,7 +54,7 @@ class QuestionGenerator:
             for q in questions:
                 q.update({
                     "id": str(uuid.uuid4()),
-                    "chunk_text": chunk,  # Track source text
+                    "chunk_text": chunk,
                 })
                 q.pop("explanation", None)
             self._question_cache[chunk] = questions
@@ -62,9 +65,33 @@ class QuestionGenerator:
 
     def generate_for_chunks(self, chunks: List[str]) -> List[Dict]:
         results = []
-        for chunk in tqdm(chunks, desc="Generating questions", unit="chunk"):
-            questions = self.generate_for_chunk(chunk)
-            results.extend(questions)
+        uncached_chunks = []
+
+        # First check cache
+        for chunk in chunks:
+            if chunk in self._question_cache:
+                results.extend(self._question_cache[chunk])
+            else:
+                uncached_chunks.append(chunk)
+
+        if uncached_chunks:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit all chunks to thread pool
+                future_to_chunk = {
+                    executor.submit(self.generate_for_chunk, chunk): chunk 
+                    for chunk in uncached_chunks
+                }
+                
+                # Process completed futures with progress bar
+                with tqdm(total=len(uncached_chunks), desc="Generating questions") as pbar:
+                    for future in as_completed(future_to_chunk):
+                        chunk = future_to_chunk[future]
+                        try:
+                            questions = future.result()
+                            results.extend(questions)
+                        except Exception as e:
+                            logger.error(f"Error processing chunk {chunk[:50]}...: {str(e)}")
+                        pbar.update(1)
         
         if self.dedup_enabled and self.deduplicator and results:
             # Get embeddings for questions
