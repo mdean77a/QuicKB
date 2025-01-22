@@ -1,6 +1,5 @@
 import yaml
 import json
-import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
