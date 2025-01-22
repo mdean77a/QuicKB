@@ -12,7 +12,6 @@ class BaseChunker(ABC):
         encoding_name = kwargs.pop('encoding_name', "cl100k_base")
         length_func = kwargs.pop('length_function', None)
 
-        # Use the corrected import path for EmbeddingManager:
         self.length_function = length_func or EmbeddingManager.get_token_counter(encoding_name)
 
     @abstractmethod

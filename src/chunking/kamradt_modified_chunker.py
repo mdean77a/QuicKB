@@ -10,7 +10,6 @@ from .recursive_token_chunker import RecursiveTokenChunker
 from embeddings.base_embedder import EmbeddingManager
 from .registry import ChunkerRegistry 
 
-
 @ChunkerRegistry.register("KamradtModifiedChunker")
 class KamradtModifiedChunker(BaseChunker):
     def __init__(

@@ -12,13 +12,14 @@ from tqdm import tqdm
 from typing import List
 import re
 from .registry import ChunkerRegistry 
+
 @ChunkerRegistry.register("LLMSemanticChunker")
 class LLMSemanticChunker(BaseChunker):
     def __init__(self, organisation: str = "openai", api_key: str = None, model_name: str = None):
         super().__init__()
 
         if organisation == "openai":
-            from openai import OpenAI  # Possibly a custom wrapper
+            from openai import OpenAI
             self.client = OpenAI(api_key=api_key)
             self.model = model_name or "gpt-4o"
             self.organisation = "openai"
