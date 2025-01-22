@@ -41,9 +41,13 @@
 #   model_name: "gpt-4o"                      # Optional: Specific model name to use
 # output_path: "./output/llm_semantic_chunks.json"
 
+
+
+
 # config_recursive_token_chunker.yaml
 
 path_to_knowledgebase: "./testing/knowledgebase"
+
 chunker: "RecursiveTokenChunker"
 chunker_arguments:
   chunk_size: 400
@@ -52,9 +56,12 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
+output_path: "./output/knowledgebase.json"
+
 generate_questions: true
 question_output_path: "./output/train_data.json"
-output_path: "./output/knowledgebase.json"
+
+
 deduplication:
   enabled: true
   similarity_threshold: 0.8
