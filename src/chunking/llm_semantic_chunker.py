@@ -4,6 +4,7 @@ from .recursive_token_chunker import RecursiveTokenChunker
 import anthropic
 import backoff
 from tqdm import tqdm
+from typing import List
 import re
 
 class LLMSemanticChunker(BaseChunker):
