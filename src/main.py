@@ -79,44 +79,46 @@ def process_files(config: ChunkerConfig):
     # After chunk generation
     # In process_files() where you generate questions:
     if config.generate_questions:
-        # Extract all chunks with their IDs
-        all_chunks = [chunk for file in results for chunk in file["chunks"]]
-        
-        # Create mapping from chunk text to chunk ID (handle duplicates properly)
-        chunk_id_map = {
-            chunk['text']: chunk['id']
-            for file in results
-            for chunk in file['chunks']
-        }
+        # Create mapping from chunk text to list of (chunk_id, source_file)
+        text_to_chunks = {}
+        for file in results:
+            for chunk in file["chunks"]:
+                text = chunk['text']
+                if text not in text_to_chunks:
+                    text_to_chunks[text] = []
+                text_to_chunks[text].append({
+                    "id": chunk['id'],
+                    "source_file": file["path"]
+                })
 
-        # Generate questions using chunk texts
+        # Generate questions for unique chunks only
+        unique_texts = list(text_to_chunks.keys())
         generator = QuestionGenerator(
             prompt_path="src/prompts/question_generation.txt",
             api_key=os.getenv("OPENAI_API_KEY")
         )
-        
-        # Generate questions for unique chunks only (optional cache)
-        unique_chunks = list({chunk['text']: chunk for chunk in all_chunks}.values())
-        questions = generator.generate_for_chunks([c['text'] for c in unique_chunks])
+        questions = generator.generate_for_chunks(unique_texts)
 
         # Build question data with chunk IDs
         question_data = []
         for q in questions:
-            try:
+            chunk_text = q.get("chunk_text")
+            if not chunk_text:
+                logger.warning("Question missing 'chunk_text' field")
+                continue
+            if chunk_text not in text_to_chunks:
+                logger.warning(f"Question generated for non-existent chunk: {chunk_text[:50]}...")
+                continue
+            
+            # Create a question entry for each matching chunk
+            for chunk_info in text_to_chunks[chunk_text]:
                 question_data.append({
                     "question_id": q["id"],
-                    "chunk_id": chunk_id_map[q["chunk_text"]],
+                    "chunk_id": chunk_info["id"],
                     "question": q["question"],
                     "answer_location": q["answer_location"],
-                    "explanation": q["explanation"],
-                    "source_file": next(
-                        f["path"] for f in results
-                        if any(chunk["text"] == q["chunk_text"] for chunk in f["chunks"])
-                    )
+                    "source_file": chunk_info["source_file"]
                 })
-            except KeyError:
-                logger.warning(f"Question generated for non-existent chunk: {q['chunk_text'][:50]}...")
-                continue
 
         output_path = Path(config.question_output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -6,6 +6,8 @@ from openai import OpenAI
 from tqdm import tqdm
 import logging
 
+logger = logging.getLogger(__name__)
+
 class QuestionGenerator:
     def __init__(self, prompt_path: str, api_key: str = None, model: str = "gpt-4o-mini"):
         self.client = OpenAI(api_key=api_key)
@@ -29,7 +31,7 @@ class QuestionGenerator:
         )
         return response.choices[0].message.content
 
-    # In generate_for_chunk()
+    # In synth_dataset/question_generator.py update generate_for_chunk()
     def generate_for_chunk(self, chunk: str) -> List[Dict]:
         if chunk in self._question_cache:
             return self._question_cache[chunk]
@@ -40,13 +42,13 @@ class QuestionGenerator:
             for q in questions:
                 q.update({
                     "id": str(uuid.uuid4()),
-                    "chunk_text": chunk,  # Store original chunk text for mapping
+                    "chunk_text": chunk,  # Track source text
                 })
                 q.pop("explanation", None)
             self._question_cache[chunk] = questions
             return questions
         except Exception as e:
-            print(f"Error generating questions: {str(e)}")
+            logger.error(f"Error generating questions: {str(e)}")
             return []
 
     def generate_for_chunks(self, chunks: List[str]) -> List[Dict]:
