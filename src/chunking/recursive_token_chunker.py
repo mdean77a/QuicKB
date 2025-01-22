@@ -6,6 +6,7 @@ from .base_chunker import BaseChunker
 from .utils import Language
 from .fixed_token_chunker import TextSplitter
 import re
+from .registry import ChunkerRegistry 
 
 def _split_text_with_regex(text: str, separator: str, keep_separator: bool) -> List[str]:
     if separator:
@@ -22,6 +23,7 @@ def _split_text_with_regex(text: str, separator: str, keep_separator: bool) -> L
         splits = list(text)
     return [s for s in splits if s != ""]
 
+@ChunkerRegistry.register("RecursiveTokenChunker")
 class RecursiveTokenChunker(TextSplitter):
     """Splitting text by recursively looking at characters / tokens."""
 

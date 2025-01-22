@@ -17,6 +17,7 @@ from typing import (
 )
 from .base_chunker import BaseChunker
 from attr import dataclass
+from .registry import ChunkerRegistry 
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class TextSplitter(BaseChunker, ABC):
 
         return cls(length_function=_tiktoken_encoder, **kwargs)
 
-
+@ChunkerRegistry.register("FixedTokenChunker")
 class FixedTokenChunker(TextSplitter):
     """Splitting text to tokens using model tokenizer."""
 

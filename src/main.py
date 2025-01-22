@@ -10,6 +10,7 @@ from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
 
 logger = logging.getLogger(__name__)
+logging.getLogger("openai").setLevel(logging.WARNING)
 
 class ChunkerConfig(BaseModel):
     path_to_knowledgebase: str = Field(..., description="Path to knowledge base directory")

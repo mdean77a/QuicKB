@@ -1,13 +1,13 @@
 # config_cluster_semantic_chunker.yaml
 
-path_to_knowledgebase: "./testing/knowledgebase"
-chunker: "ClusterSemanticChunker"
-chunker_arguments:
-  embedding_function: "openai"  # Can be a string identifier for a registered embedder or a custom embedder object
-  max_chunk_size: 400           # Maximum number of tokens per chunk
-  min_chunk_size: 50            # Minimum number of tokens per chunk
-  length_function: null         # Optional: Custom length function (leave null to use default)
-output_path: "./output/cluster_chunks.json"
+# path_to_knowledgebase: "./testing/knowledgebase"
+# chunker: "ClusterSemanticChunker"
+# chunker_arguments:
+#   embedding_function: "openai"  # Can be a string identifier for a registered embedder or a custom embedder object
+#   max_chunk_size: 400           # Maximum number of tokens per chunk
+#   min_chunk_size: 50            # Minimum number of tokens per chunk
+#   length_function: null         # Optional: Custom length function (leave null to use default)
+# output_path: "./output/cluster_chunks.json"
 
 # # config_fixed_token_chunker.yaml
 
@@ -16,10 +16,8 @@ output_path: "./output/cluster_chunks.json"
 # chunker_arguments:
 #   encoding_name: "cl100k_base"              # Tokenizer encoding name
 #   model_name: "text-embedding-3-large"      # OpenAI embedding model name
-#   chunk_size: 4000                          # Maximum number of tokens per chunk
-#   chunk_overlap: 200                        # Number of overlapping tokens between chunks
-#   allowed_special: ["all"]                   # Allowed special tokens (e.g., ["all"] or specific tokens)
-#   disallowed_special: ["all"]                # Disallowed special tokens (e.g., ["all"] or specific tokens)
+#   chunk_size: 400                          # Maximum number of tokens per chunk
+#   chunk_overlap: 50                        # Number of overlapping tokens between chunks
 # output_path: "./output/fixed_token_chunks.json"
 
 # # config_kamradt_modified_chunker.yaml
@@ -39,26 +37,27 @@ output_path: "./output/cluster_chunks.json"
 # chunker: "LLMSemanticChunker"
 # chunker_arguments:
 #   organisation: "openai"                    # "openai" or "anthropic"
-#   api_key: "your_api_key_here"              # Your API key for the chosen organization
+#   # api_key: "your_api_key_here"              # Your API key for the chosen organization
 #   model_name: "gpt-4o"                      # Optional: Specific model name to use
 # output_path: "./output/llm_semantic_chunks.json"
 
-# # config_recursive_token_chunker.yaml
+# config_recursive_token_chunker.yaml
 
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "RecursiveTokenChunker"
-# chunker_arguments:
-#   chunk_size: 4000                           # Maximum number of tokens per chunk
-#   chunk_overlap: 200                         # Number of overlapping tokens between chunks
-#   separators:                                # List of separators to recursively split the text
-#     - "\n\n"
-#     - "\n"
-#     - "."
-#     - "?"
-#     - "!"
-#     - " "
-#     - ""                                    # Empty string as the last resort splitter
-#   keep_separator: true                       # Whether to keep the separators in the resulting chunks
-#   is_separator_regex: false                  # Whether the separators are regex patterns
-# output_path: "./output/recursive_token_chunks.json"
+path_to_knowledgebase: "./testing/knowledgebase"
+chunker: "RecursiveTokenChunker"
+chunker_arguments:
+  chunk_size: 400                           # Maximum number of tokens per chunk
+  chunk_overlap: 0                         # Number of overlapping tokens between chunks
+  separators:                                # List of separators to recursively split the text
+    - "\n\n"
+    - "\n"
+    - "."
+    - "?"
+    - "!"
+    - " "
+    - ""                                    # Empty string as the last resort splitter
+  keep_separator: true                       # Whether to keep the separators in the resulting chunks
+  is_separator_regex: false                  # Whether the separators are regex patterns
+  length_function: "character"
+output_path: "./output/recursive_token_chunks.json"
 

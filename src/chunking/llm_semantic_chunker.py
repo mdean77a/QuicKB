@@ -7,7 +7,8 @@ import backoff
 from tqdm import tqdm
 from typing import List
 import re
-
+from .registry import ChunkerRegistry 
+@ChunkerRegistry.register("LLMSemanticChunker")
 class LLMSemanticChunker(BaseChunker):
     def __init__(self, organisation: str = "openai", api_key: str = None, model_name: str = None):
         super().__init__()

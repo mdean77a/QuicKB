@@ -2,9 +2,11 @@ from typing import Optional, List, Any
 import numpy as np
 from .base_chunker import BaseChunker
 from .recursive_token_chunker import RecursiveTokenChunker
-# Fix import to pull from embeddings
 from embeddings.base_embedder import EmbeddingManager
+from .registry import ChunkerRegistry 
 
+
+@ChunkerRegistry.register("KamradtModifiedChunker")
 class KamradtModifiedChunker(BaseChunker):
     def __init__(
         self,
