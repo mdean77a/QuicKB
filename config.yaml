@@ -46,21 +46,13 @@
 path_to_knowledgebase: "./testing/knowledgebase"
 chunker: "RecursiveTokenChunker"
 chunker_arguments:
-  chunk_size: 2000                           # Maximum number of tokens per chunk
-  chunk_overlap: 0                         # Number of overlapping tokens between chunks
-  separators:                                # List of separators to recursively split the text
-    - "\n\n"
-    - "\n"
-    - "."
-    - "?"
-    - "!"
-    - " "
-    - ""                                    # Empty string as the last resort splitter
-  keep_separator: true                       # Whether to keep the separators in the resulting chunks
-  is_separator_regex: false                  # Whether the separators are regex patterns
+  chunk_size: 2000
+  chunk_overlap: 0
+  separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
+  keep_separator: true
+  is_separator_regex: false
   length_function: "character"
-
 generate_questions: true
-question_output_path: "./output/synthetic_questions.json"
-output_path: "./output/recursive_token_chunks.json"
+question_output_path: "./output/train_data.json"
+output_path: "./output/knowledgebase.json"
 
