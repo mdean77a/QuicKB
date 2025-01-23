@@ -41,9 +41,9 @@ class DatasetCardGenerator:
     ) -> str:
         """Format question generation section if enabled."""
         return f"""### Question Generation
-- Model: {model_name}
-- Deduplication threshold: {similarity_threshold}
-- Results:
+- **Model**: {model_name}
+- **Deduplication threshold**: {similarity_threshold}
+- **Results**:
   - Total questions generated: {num_questions}
   - Questions after deduplication: {num_deduped}"""
 

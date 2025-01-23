@@ -16,7 +16,7 @@ library_name: quickb
 
 # {dataset_name}
 
-Generated using [quickb](https://github.com/AdamLucek/quickb), a text chunking and synthetic question generation tool.
+Generated using [QuicKB](https://github.com/AdamLucek/quickb), a text chunking and synthetic question generation tool developed by [Adam Lucek](https://huggingface.co/AdamLucek).
 
 ## Dataset Details
 
