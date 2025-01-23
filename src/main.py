@@ -160,6 +160,7 @@ def process_files(config: ChunkerConfig):
 
         # Generate questions
         question_entries = generator.generate_for_chunks(unique_texts)
+        original_question_count = len(question_entries)
 
         # Build the training dataset
         # anchor = question
@@ -223,11 +224,29 @@ def process_files(config: ChunkerConfig):
             # Get repository name from output path if not specified
             repository_name = Path(config.output_path).stem
             
+            # Collect chunker info
+            chunker_info = {
+                'chunker_name': config.chunker,
+                'chunker_params': config.chunker_arguments
+            }
+            
+            # Collect question generation info if enabled
+            question_gen_info = None
+            if config.generate_questions:
+                question_gen_info = {
+                    'model_name': "gpt-4o-mini",
+                    'similarity_threshold': config.deduplication.get('similarity_threshold', 0.85),
+                    'num_questions': original_question_count,
+                    'num_deduped': len(train_records)
+                }
+            
             # Push dataset
             pusher.push_dataset(
                 repository_name=repository_name,
                 knowledgebase_path=config.output_path,
+                chunker_info=chunker_info,
                 train_path=config.question_output_path if config.generate_questions else None,
+                question_gen_info=question_gen_info,
                 private=config.hub_private
             )
         except Exception as e:
