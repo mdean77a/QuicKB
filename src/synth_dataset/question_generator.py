@@ -18,7 +18,7 @@ class QuestionGenerator:
         model: str = "gpt-4o-mini",
         dedup_enabled: bool = True, 
         similarity_threshold: float = 0.85,
-        max_workers: int = 10  # Number of parallel workers
+        max_workers: int = 20  # Number of parallel workers
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model

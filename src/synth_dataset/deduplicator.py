@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class QuestionDeduplicator:
-    def __init__(self, similarity_threshold: float = 0.92):
+    def __init__(self, similarity_threshold: float = 0.85):
         self.similarity_threshold = similarity_threshold
     
     def _calculate_similarity_matrix(self, embeddings: List[List[float]]) -> np.ndarray:
