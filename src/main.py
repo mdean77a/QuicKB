@@ -160,7 +160,7 @@ def process_files(config: ChunkerConfig):
 
         # Generate questions
         question_entries = generator.generate_for_chunks(unique_texts)
-        original_question_count = len(question_entries)
+        original_question_count = sum(len(questions) for questions in generator._question_cache.values())
 
         # Build the training dataset
         # anchor = question
@@ -236,8 +236,8 @@ def process_files(config: ChunkerConfig):
                 question_gen_info = {
                     'model_name': "gpt-4o-mini",
                     'similarity_threshold': config.deduplication.get('similarity_threshold', 0.85),
-                    'num_questions': original_question_count,
-                    'num_deduped': len(train_records)
+                    'num_questions': original_question_count,  # Original count
+                    'num_deduped': len(train_records)          # After deduplication
                 }
             
             # Push dataset

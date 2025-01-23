@@ -26,18 +26,12 @@ class DatasetCardGenerator:
             return "n>1M"
             
     def _format_chunker_params(self, params: Dict[str, Any]) -> str:
-        """Format chunker parameters as a string."""
-        formatted = []
-        for key, value in params.items():
-            if key.startswith('_') or value is None:  # Skip internal params and None values
-                continue
-            # Special handling for lists
-            if isinstance(value, list):
-                value_str = f"[{', '.join(repr(v) for v in value)}]"
-            else:
-                value_str = str(value)
-            formatted.append(f"  {key}: {value_str}  ")
-        return "\n".join(formatted)
+        """Simple Markdown-safe parameter formatting"""
+        return "\n".join(
+            f"- **{key}**: `{repr(value)}`" 
+            for key, value in params.items() 
+            if value is not None and not key.startswith('_')
+        )
         
     def _format_question_generation(self, 
         model_name: str,

@@ -21,13 +21,9 @@ Generated using [quickb](https://github.com/AdamLucek/quickb), a text chunking a
 ## Dataset Details
 
 ### Chunking Configuration
-- Chunker: {chunker_name}
-- Parameters:
-  {chunker_params}
-- Statistics:
-  - Total chunks: {num_chunks}
-  - Average chunk size: {avg_chunk_size}
-  - Files processed: {num_files}
+- **Chunker**: {chunker_name}
+- **Parameters**:
+{chunker_params}
 
 {question_generation}
 
