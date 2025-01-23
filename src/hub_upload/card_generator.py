@@ -27,7 +27,7 @@ class DatasetCardGenerator:
             
     def _format_chunker_params(self, params: Dict[str, Any]) -> str:
         """Simple Markdown-safe parameter formatting"""
-        return "\n".join(
+        return "\n  ".join(
             f"- **{key}**: `{repr(value)}`" 
             for key, value in params.items() 
             if value is not None and not key.startswith('_')

@@ -23,7 +23,7 @@ Generated using [QuicKB](https://github.com/AdamLucek/quickb), a text chunking a
 ### Chunking Configuration
 - **Chunker**: {chunker_name}
 - **Parameters**:
-{chunker_params}
+    {chunker_params}
 
 {question_generation}
 
