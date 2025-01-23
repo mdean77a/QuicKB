@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
 from synth_dataset.question_generator import QuestionGenerator
+from hub_upload.dataset_pusher import DatasetPusher
 
 logger = logging.getLogger(__name__)
 logging.getLogger("openai").setLevel(logging.WARNING)
@@ -33,6 +34,9 @@ class ChunkerConfig(BaseModel):
         },
         description="Configuration for question deduplication"
     )
+    hub_username: Optional[str] = Field(None, description="Hugging Face username")
+    hub_token: Optional[str] = Field(None, description="Hugging Face token (will use HUGGINGFACE_TOKEN env var if not provided)")
+    hub_private: bool = Field(True, description="Whether to create a private repository")
 
 
 def load_config(config_path: str) -> ChunkerConfig:
@@ -193,6 +197,41 @@ def process_files(config: ChunkerConfig):
 
         logger.info(f"Training dataset saved to {config.question_output_path}")
 
+    kb_output_path = Path(config.output_path)
+    kb_output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(kb_output_path, 'w', encoding='utf-8') as f:
+        json.dump(knowledgebase_records, f, indent=2, ensure_ascii=False)
+    logger.info(f"Knowledgebase dataset saved to {config.output_path}")
+
+    # After saving train_records to JSON (if generated)
+    if config.generate_questions and config.question_output_path:
+        train_output_path = Path(config.question_output_path)
+        train_output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(train_output_path, 'w', encoding='utf-8') as f:
+            json.dump(train_records, f, indent=2, ensure_ascii=False)
+        logger.info(f"Training dataset saved to {config.question_output_path}")
+
+    # Upload to Hub if username is provided
+    if config.hub_username:
+        try:
+            # Initialize pusher
+            pusher = DatasetPusher(
+                username=config.hub_username,
+                token=config.hub_token
+            )
+            
+            # Get repository name from output path if not specified
+            repository_name = Path(config.output_path).stem
+            
+            # Push dataset
+            pusher.push_dataset(
+                repository_name=repository_name,
+                knowledgebase_path=config.output_path,
+                train_path=config.question_output_path if config.generate_questions else None,
+                private=config.hub_private
+            )
+        except Exception as e:
+            logger.error(f"Failed to upload to Hugging Face Hub: {str(e)}")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

@@ -64,3 +64,7 @@ question_output_path: "./output/train_data.json"
 deduplication:
   enabled: true
   similarity_threshold: 0.8
+
+hub_username: AdamLucek  
+hub_token: null     
+hub_private: false
