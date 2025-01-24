@@ -21,7 +21,7 @@ QuicKB takes unstructured text documents and creates retrieval-optimzied knowled
   - **KamradtModifiedChunker**: Hybrid semantic-token approach
   - **ClusterSemanticChunker**: Content-aware semantic grouping
 
-Chunking Implementation & Techniques Modified From (ChromaDB: Evaluating Chunking Strategies for Retrieval)[https://research.trychroma.com/evaluating-chunking]
+Chunking Implementation & Techniques Modified From [ChromaDB: Evaluating Chunking Strategies for Retrieval](https://research.trychroma.com/evaluating-chunking)
 
 ### Training Data Generation
 - Automatic question generation from chunks
@@ -169,7 +169,7 @@ chunker_arguments:
 
 QuicKB builds upon these foundational works:
 
-ChromaDB: Evaluating Chunking Strategies for Retrieval
+ChromaDB: [Evaluating Chunking Strategies for Retrieval](https://research.trychroma.com/evaluating-chunking)
 ```bibtex
 @techreport{smith2024evaluating,
   title = {Evaluating Chunking Strategies for Retrieval},
@@ -181,11 +181,24 @@ ChromaDB: Evaluating Chunking Strategies for Retrieval
 }
 ```
 
-Philipp Schmid's (Fine-tune Embedding models for Retrieval Augmented Generation (RAG))[https://www.philschmid.de/fine-tune-embedding-model-for-rag#3-define-loss-function-with-matryoshka-representation]
+Philipp Schmid's [Fine-tune Embedding models for Retrieval Augmented Generation (RAG)](https://www.philschmid.de/fine-tune-embedding-model-for-rag#3-define-loss-function-with-matryoshka-representation)
+
+Sentence Transformers
+```bibtext
+@inproceedings{reimers-2019-sentence-bert,
+  title = "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks",
+  author = "Reimers, Nils and Gurevych, Iryna",
+  booktitle = "Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing",
+  month = "11",
+  year = "2019",
+  publisher = "Association for Computational Linguistics",
+  url = "https://arxiv.org/abs/1908.10084",
+}
+```
 
 ## Contributing
 
-Contributions welcome! 
+Contributions welcome! Please feel free to submit a Pull Request.
 
 ToDo List:
 - Custom Model Card
@@ -196,3 +209,7 @@ ToDo List:
 ## License
 
 MIT License - See [LICENSE](LICENSE)
+
+## Acknowledgements
+
+
