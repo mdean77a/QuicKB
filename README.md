@@ -1,4 +1,5 @@
-# QuicKB: Optimized Retrieval Knowledge Base & Embedding Model Creation
+# QuicKB 
+Optimized Retrieval Knowledge Base & Embedding Model Creation
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
