@@ -35,7 +35,7 @@ class ChunkerConfig(BaseModel):
         description="Configuration for question deduplication"
     )
     hub_username: Optional[str] = Field(None, description="Hugging Face username")
-    hub_token: Optional[str] = Field(None, description="Hugging Face token (will use HUGGINGFACE_TOKEN env var if not provided)")
+    hub_token: Optional[str] = Field(None, description="Hugging Face token (will use HF_TOKEN env var if not provided)")
     hub_private: bool = Field(True, description="Whether to create a private repository")
     train_embedding: bool = Field(False, description="Whether to train an embedding model or not")
 

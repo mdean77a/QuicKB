@@ -214,7 +214,9 @@ ToDo List:
 - Handle when existing repo for model is in the way
 - HF login issue with training
 - Dependencies for training with GPU/CPU
-- Update model card for dataset
+- Update model card for dataset (link to trained model and vice versa)
+- Refactoring the trainer for better modular development
+- Refactor the steps to their respective sub folders out from main
 
 ## License
 
