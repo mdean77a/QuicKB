@@ -1,6 +1,6 @@
 # QuicKB 
 
-<img src="qkb_logo.png" width=100>
+<img src="qkb_logo.png" width=175>
 
 Optimized Retrieval Knowledge Base & Embedding Model Creation
 
