@@ -1,4 +1,7 @@
 # QuicKB 
+
+<img src="qkb_logo.png" width=100>
+
 Optimized Retrieval Knowledge Base & Embedding Model Creation
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
