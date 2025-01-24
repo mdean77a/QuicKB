@@ -215,6 +215,3 @@ ToDo List:
 
 MIT License - See [LICENSE](LICENSE)
 
-## Acknowledgements
-
-
