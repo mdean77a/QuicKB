@@ -215,7 +215,7 @@ def main(config_path: str = "config.yaml"):
         model_card_data=SentenceTransformerModelCardData(
             language="en",
             license="apache-2.0",
-            model_name="Fine-tuned with MatryoshkaLoss",
+            model_name="Fine-tuned with QuicKB",
         ),
     )
 
