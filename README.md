@@ -1,18 +1,15 @@
-# QuicKB: End-to-End Knowledge Base Processing Pipeline
+# QuicKB: Optimized Retrieval Knowledge Base & Embedding Model Creation
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-> From raw text to optimized embeddings in a single workflow
-
 ## Overview
 
-QuicKB transforms unstructured text documents into production-ready knowledge bases through a complete pipeline that handles:
+QuicKB takes unstructured text documents and creates retrieval-optimzied knowledge bases through a complete pipeline that handles:
 
-- Smart document chunking with multiple strategies
-- Synthetic question generation for training data
-- Embedding model fine-tuning with dimension optimization
-- Automatic Hugging Face Hub integration
+- Document Chunking
+- Synthetic QnA Training Dataset Generation
+- Embedding Model Fine Tuning for Retrieval
 
 ## Key Features
 
@@ -20,9 +17,11 @@ QuicKB transforms unstructured text documents into production-ready knowledge ba
 - Multiple chunking strategies:
   - **RecursiveTokenChunker**: Hierarchical splitting using custom separators
   - **FixedTokenChunker**: Precise token-based chunking
-  - **ClusterSemanticChunker**: Content-aware semantic grouping
   - **LLMSemanticChunker**: LLM-guided natural break points
   - **KamradtModifiedChunker**: Hybrid semantic-token approach
+  - **ClusterSemanticChunker**: Content-aware semantic grouping
+
+Chunking Implementation & Techniques Modified From (ChromaDB: Evaluating Chunking Strategies for Retrieval)[https://research.trychroma.com/evaluating-chunking]
 
 ### Training Data Generation
 - Automatic question generation from chunks
@@ -31,16 +30,15 @@ QuicKB transforms unstructured text documents into production-ready knowledge ba
 - Parallel processing for speed
 
 ### Embedding Optimization
+- Train the latest Embedding models
 - Matryoshka embedding training (768→64D)
 - Progressive dimensionality reduction
-- Automatic evaluation metrics
-- Direct Hugging Face Hub upload
 
 ## Installation
 
 ```bash
-git clone https://github.com/AdamLucek/quickb.git
-cd quickb
+git clone https://github.com/AdamLucek/QuicKB.git
+cd QuicKB
 
 python -m venv quickb-env
 source quickb-env/bin/activate  # Windows: quickb-env\Scripts\activate
@@ -171,51 +169,30 @@ chunker_arguments:
 
 QuicKB builds upon these foundational works:
 
-1. **Chunking Algorithms**
+ChromaDB: Evaluating Chunking Strategies for Retrieval
 ```bibtex
-@software{LangChain_TextSplitters,
-  author = {LangChain AI},
-  title = {LangChain Text Splitters},
-  url = {https://github.com/langchain-ai/langchain},
-  license = {MIT}
-}
-@software{Chroma_Chunking,
-  author = {Chroma Research},
-  title = {Chunking Evaluation Framework},
-  url = {https://github.com/chroma-core/chroma},
-  license = {Apache-2.0}
+@techreport{smith2024evaluating,
+  title = {Evaluating Chunking Strategies for Retrieval},
+  author = {Smith, Brandon and Troynikov, Anton},
+  year = {2024},
+  month = {July},
+  institution = {Chroma},
+  url = {https://research.trychroma.com/evaluating-chunking},
 }
 ```
 
-2. **Training Approach**
-```bibtex
-@article{Matryoshka_Embeddings,
-  title={Matryoshka Representation Learning},
-  author={Kusupati, Aditya et al.},
-  journal={NeurIPS 2022},
-  year={2022}
-}
-```
-
-**Citing QuicKB**
-```bibtex
-@software{Lucek_QuicKB_2024,
-  author = {Łucek, Adam},
-  title = {QuicKB: End-to-End Knowledge Base Processing Pipeline},
-  url = {https://github.com/AdamLucek/quickb},
-  version = {0.1},
-  license = {MIT}
-}
-```
+Philipp Schmid's (Fine-tune Embedding models for Retrieval Augmented Generation (RAG))[https://www.philschmid.de/fine-tune-embedding-model-for-rag#3-define-loss-function-with-matryoshka-representation]
 
 ## Contributing
 
-Contributions welcome! Please check out our [contribution guidelines](CONTRIBUTING.md).
+Contributions welcome! 
+
+ToDo List:
+- Custom Model Card
+- More Robust Argument Handling (i.e. some are hardcoded, others not, and issues with nested access)
+- Better Variable Error Logging
+- Different Model Support for question generation
 
 ## License
 
 MIT License - See [LICENSE](LICENSE)
-
-## Acknowledgments
-
-This project extends work from LangChain AI, Chroma Research, and Greg Kamradt's chunking methodologies. Special thanks to the Hugging Face team for their embedding training tools.
