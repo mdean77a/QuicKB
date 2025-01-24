@@ -16,7 +16,7 @@ class DatasetPusher:
     def __init__(self, username: str, token: Optional[str] = None):
         """Initialize with HF credentials."""
         self.username = username
-        self.token = token or os.getenv("HUGGINGFACE_TOKEN")
+        self.token = token or os.getenv("HF_TOKEN")
         
         if not self.token:
             raise ValueError("No Hugging Face token provided or found in environment")

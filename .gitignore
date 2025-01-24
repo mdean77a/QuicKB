@@ -1,5 +1,6 @@
 .DS_Store
 quickb_venv/
+kb_env/
 testing/
 __pycache__/
 *.py[cod]
