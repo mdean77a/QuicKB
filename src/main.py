@@ -37,6 +37,7 @@ class ChunkerConfig(BaseModel):
     hub_username: Optional[str] = Field(None, description="Hugging Face username")
     hub_token: Optional[str] = Field(None, description="Hugging Face token (will use HUGGINGFACE_TOKEN env var if not provided)")
     hub_private: bool = Field(True, description="Whether to create a private repository")
+    train_embedding: bool = Field(False, description="Whether to train an embedding model or not")
 
 
 def load_config(config_path: str) -> ChunkerConfig:
@@ -258,7 +259,14 @@ if __name__ == "__main__":
     try:
         config = load_config("config.yaml")
         process_files(config)
-        logger.info("Done!")
+        logger.info("Done chunking")
+
+      # If we want to automatically train embeddings:
+        from training.train import main as train_main
+        if config.train_embedding:
+            logger.info("Starting embedding training pipeline...")
+            train_main("config.yaml")
+            logger.info("Embedding training complete!")
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
         raise

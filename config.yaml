@@ -69,3 +69,17 @@ deduplication:
 hub_username: AdamLucek  
 hub_token: null     
 hub_private: false
+
+train_embedding: true
+
+training:
+  model_id: "nomic-ai/modernbert-embed-base"
+  output_dir: "./output/modernbert_legal_mtl"
+  epochs: 4
+  learning_rate: 2.0e-5
+  matryoshka_dimensions: [768, 512, 256, 128, 64]
+  batch_size: 32
+  gradient_accumulation_steps: 16
+  metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
+  push_to_hub: true
+  hub_model_id: "AdamLucek/modernbert-embed-base-quickb"
