@@ -205,7 +205,7 @@ Sentence Transformers
 
 Contributions welcome! Please feel free to submit a Pull Request.
 
-ToDo List:
+Todo List:
 - Custom Model Card (Using base from SBERT currently)
 - More Robust Config Argument Handling (i.e. some are hardcoded, others not, and issues with nested access)
 - Simplify Configs and Intermediate Steps (remove redundant or not so useful options)
