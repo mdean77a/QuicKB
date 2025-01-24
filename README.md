@@ -31,9 +31,10 @@ Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunki
 - Parallel processing for speed
 
 ### Embedding Optimization
-- Train the latest Embedding models
+- Fine-tune state-of-the-art embedding models
+- Optimized for both accuracy and inference speed
 - Matryoshka embedding training (768→64D)
-- Progressive dimensionality reduction
+- Built-in evaluation metrics and benchmarking
 
 ## Installation
 
