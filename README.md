@@ -42,7 +42,7 @@ Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunki
 ## Installation
 
 ```bash
-git clone https://github.com/AdamLucek/QuicKB.git
+git clone https://github.com/ALucek/QuicKB.git
 cd QuicKB
 
 python -m venv quickb-env
