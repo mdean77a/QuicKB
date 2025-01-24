@@ -16,6 +16,8 @@ from sentence_transformers.training_args import BatchSamplers
 from huggingface_hub import login
 
 logger = logging.getLogger(__name__)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
 
 def load_main_config(config_path: str = "config.yaml") -> Dict:
     """Loads the global config.yaml as a Python dict."""
@@ -186,6 +188,9 @@ def main(config_path: str = "config.yaml"):
     dataset_split = train_dataset_full.train_test_split(test_size=0.1)
     train_dataset = dataset_split["train"]
     test_dataset  = dataset_split["test"]
+    # Log the sizes to verify the split
+    logger.info(f"Train dataset size after split: {len(train_dataset)}")
+    logger.info(f"Test dataset size after split: {len(test_dataset)}")
 
     # --- Build a combined corpus dataset for evaluation, so that IR can see all chunk_text
     # We'll unify train + test => to have a single set of anchor/positive pairs
