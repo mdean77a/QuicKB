@@ -217,6 +217,7 @@ ToDo List:
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development
 - Refactor the steps to their respective sub folders out from main
+- Readme notes about huggingface
 
 ## License
 
