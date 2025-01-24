@@ -206,10 +206,14 @@ Sentence Transformers
 Contributions welcome! Please feel free to submit a Pull Request.
 
 ToDo List:
-- Custom Model Card
-- More Robust Argument Handling (i.e. some are hardcoded, others not, and issues with nested access)
-- Better Variable Error Logging
+- Custom Model Card (Using base from SBERT currently)
+- More Robust Config Argument Handling (i.e. some are hardcoded, others not, and issues with nested access)
+- Simplify Configs and Intermediate Steps (remove redundant or not so useful options)
+- Better Error Logging
 - Different Model Support for question generation
+- Handle when existing repo for model is in the way
+- HF login issue with training
+- Dependencies for training with GPU/CPU
 
 ## License
 
