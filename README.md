@@ -6,7 +6,7 @@ Optimized Retrieval Knowledge Base & Embedding Model Creation
 
 ## Overview
 
-QuicKB takes unstructured text documents and creates retrieval-optimzied knowledge bases through a complete pipeline that handles:
+QuicKB takes unstructured text documents and creates retrieval-optimized knowledge bases through a complete pipeline that handles:
 
 - Document Chunking
 - Synthetic QnA Training Dataset Generation
@@ -22,7 +22,7 @@ QuicKB takes unstructured text documents and creates retrieval-optimzied knowled
   - **KamradtModifiedChunker**: Hybrid semantic-token approach
   - **ClusterSemanticChunker**: Content-aware semantic grouping
 
-Chunking Implementation & Techniques Modified From [ChromaDB: Evaluating Chunking Strategies for Retrieval](https://research.trychroma.com/evaluating-chunking)
+Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunking Strategies for Retrieval*](https://research.trychroma.com/evaluating-chunking)
 
 ### Training Data Generation
 - Automatic question generation from chunks
