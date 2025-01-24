@@ -162,7 +162,7 @@ MIT License - See [LICENSE](LICENSE)
 ---
 
 **Roadmap**
-
+XXX
 
 **Acknowledgments**  
 This project extends work from LangChain AI, Chroma Research, and Greg Kamradt's chunking methodologies. Special thanks to the Hugging Face team for their embedding training tools.
