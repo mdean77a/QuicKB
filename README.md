@@ -152,8 +152,6 @@ chunker_arguments:
   embedding_function: "openai"
 ```
 
-### Local Models w/LiteLLM 
-
 ### LiteLLM Integration
 
 QuicKB uses [LiteLLM](https://docs.litellm.ai/docs/) for flexible [model provider integration](https://docs.litellm.ai/docs/providers), allowing you to use any supported LLM or embedding provider for question generation and chunking. This enables both cloud-based and local model deployment.
