@@ -253,7 +253,6 @@ Todo List:
 
 - pydantic v2 fields warning (and cleaner config args in general)
 - LiteLLM integration into chunkers
-- trainer config- standardize on upload config and additional trainer arguments
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development (and integration with overall pipeline execution)
