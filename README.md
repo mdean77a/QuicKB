@@ -162,15 +162,6 @@ chunker_arguments:
 
 QuicKB uses [LiteLLM](https://docs.litellm.ai/docs/) for flexible [model provider integration](https://docs.litellm.ai/docs/providers), allowing you to use any supported LLM or embedding provider for question generation and chunking. This enables both cloud-based and local model deployment.
 
-```yaml
-# Question Generation
-question_generation:
-  model: "openai/gpt-4o-mini"  # Format: "provider/model-name"
-  model_api_base: "http://localhost:8000"  # Optional: Custom API endpoint
-  embedding_model: "text-embedding-3-large"
-  embedding_api_base: null  # Optional: Different base URL for embeddings
-```
-
 **To use local models**:
 
 1. Set up an OpenAI API compatible endpoint (i.e. Ollama)
