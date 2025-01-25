@@ -43,6 +43,15 @@ class ChunkerConfig(BaseModel):
     output_path: str
     upload_config: Optional[UploadConfig] = None
 
+    @field_validator('chunker')
+    @classmethod
+    def validate_chunker_type(cls, v, info):
+        # Only validate if output_path doesn't exist
+        if not os.path.exists(info.data.get('output_path', '')):
+            if v not in ChunkerRegistry._chunkers:
+                raise ValueError(f"Unknown chunker: {v}")
+        return v
+
 class QuestionGeneratorConfig(BaseModel):
     model_config = ConfigDict(
         extra='forbid'
@@ -96,15 +105,6 @@ class PipelineConfig(BaseModel):
     
     # Training
     training: Optional[TrainingConfig] = None
-
-@field_validator('chunker')
-@classmethod
-def validate_chunker_type(cls, v, info):
-    # Only validate if we're doing chunking (no existing chunks)
-    if not os.path.exists(info.data.get('output_path', '')):
-        if v not in ChunkerRegistry._chunkers:
-            raise ValueError(f"Unknown chunker: {v}")
-    return v
 
 def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
     """Load and validate pipeline configuration."""
