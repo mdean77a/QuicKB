@@ -1,6 +1,10 @@
 # =====================================================
 # Full Pipeline Configuration
 # =====================================================
+pipeline:
+  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
+  to_stage: "UPLOAD"
+
 path_to_knowledgebase: "./testing/knowledgebase"
 chunker: "RecursiveTokenChunker" 
 chunker_arguments:
@@ -36,81 +40,3 @@ training:
   metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   push_to_hub: true
   hub_model_id: "AdamLucek/modernbert-embed-quickb"
-
-# =====================================================
-# Alternative Configurations Below
-# Comment out main config above and uncomment desired config
-# =====================================================
-
-# # Just Chunking Configuration
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "RecursiveTokenChunker"
-# chunker_arguments:
-#   chunk_size: 400
-#   chunk_overlap: 0
-#   separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
-# output_path: "./output/kb.json"
-# generate_questions: false
-# train_embedding: false
-# hub_username: "AdamLucek"
-# push_to_hub: true
-# hub_private: false
-
-# # Just Question Generation Configuration (Using Existing Chunks)
-# use_existing_chunks: true
-# output_path: "./output/kb.json"  # Point to existing chunks
-# generate_questions: true
-# question_output_path: "./output/new_train.json"
-# deduplication:
-#   enabled: true
-#   similarity_threshold: 0.85
-# # Required for validation but won't be used
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "RecursiveTokenChunker"
-# # Hub settings
-# hub_username: "AdamLucek"
-# push_to_hub: true
-# hub_private: false
-# # Disable training
-# train_embedding: false
-
-# # Just Training Configuration (Using Existing Data)
-# use_existing_chunks: true
-# output_path: "./output/kb.json"  # Existing chunks
-# question_output_path: "./output/train.json"  # Existing training data
-# generate_questions: true  # Required for training
-# # Required for validation
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "RecursiveTokenChunker"
-# # Training settings
-# train_embedding: true
-# training:
-#   model_id: "nomic-ai/modernbert-embed-base"
-#   output_dir: "./output/new_model"
-#   epochs: 4
-#   learning_rate: 2.0e-5
-#   matryoshka_dimensions: [768, 512, 256, 128, 64]
-#   batch_size: 32
-#   gradient_accumulation_steps: 16
-#   metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
-#   push_to_hub: true
-#   hub_model_id: "AdamLucek/modernbert-embed-quickb"
-# # Hub settings for dataset
-# hub_username: "AdamLucek"
-# push_to_hub: true
-# hub_private: false
-
-# # Just Upload Configuration (Using Existing Data)
-# use_existing_chunks: true
-# output_path: "./output/kb.json"  # Existing chunks
-# question_output_path: "./output/train.json"  # Existing training data if available
-# generate_questions: true  # Required if uploading training data
-# # Required for validation
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "RecursiveTokenChunker"
-# # Hub settings
-# hub_username: "AdamLucek"
-# push_to_hub: true
-# hub_private: false
-# # Disable training
-# train_embedding: false

@@ -67,6 +67,10 @@ The pipeline is controlled through a single `config.yaml` file. Here's a complet
 # =====================================================
 # Full Pipeline Configuration
 # =====================================================
+pipeline:
+  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
+  to_stage: "UPLOAD"
+
 path_to_knowledgebase: "./testing/knowledgebase"
 chunker: "RecursiveTokenChunker" 
 chunker_arguments:
@@ -76,6 +80,7 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
+
 output_path: "./output/knowledgebase-quickb.json"
 
 generate_questions: true

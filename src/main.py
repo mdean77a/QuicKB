@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 import os
 import json
 import uuid
-from dataclasses import dataclass
+from enum import Enum, auto
 
 from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
@@ -18,12 +18,11 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-@dataclass
-class PipelineStage:
-    CHUNK = "chunk"
-    GENERATE = "generate"
-    TRAIN = "train"
-    UPLOAD = "upload"
+class PipelineStage(Enum):
+    CHUNK = auto()
+    GENERATE = auto()
+    TRAIN = auto()
+    UPLOAD = auto()
 
 class TrainingConfig(BaseModel):
     model_id: str = "nomic-ai/modernbert-embed-base"
@@ -355,49 +354,144 @@ def validate_pipeline_config(config: PipelineConfig):
         raise ValueError("Question generation enabled but no output path specified")
 
 
-def run_pipeline(config: PipelineConfig):
-    try:
-        # Step 1: Chunking or Load Existing Chunks
-        if config.use_existing_chunks:
-            logger.info("Loading existing chunks...")
-            with open(config.output_path, 'r', encoding='utf-8') as f:
+def run_pipeline(
+    config: PipelineConfig,
+    from_stage: PipelineStage = PipelineStage.CHUNK,
+    to_stage: PipelineStage = PipelineStage.UPLOAD
+):
+    """
+    Run the QuicKB pipeline from `from_stage` up to and including `to_stage`.
+    
+    Stages are:
+    1) CHUNK        -> Convert input text files into chunked JSON
+    2) GENERATE     -> Generate synthetic QnA from chunks
+    3) TRAIN        -> Fine-tune an embedding model using QnA
+    4) UPLOAD       -> Upload dataset (and optionally model) to HF Hub
+    
+    This function avoids re-running unnecessary steps and gracefully handles
+    partial pipeline runs if the relevant data already exists on disk.
+    """
+    # -------------------------------------------------------------------------
+    # 1. CHUNKING or LOADING EXISTING CHUNKS
+    # -------------------------------------------------------------------------
+    kb_dataset = None
+    
+    # If we are skipping chunk stage (from_stage > CHUNK or user wants partial pipeline),
+    # ensure we have an existing chunks file to load
+    if from_stage.value > PipelineStage.CHUNK.value:
+        # We are not chunking, so we must load existing chunks
+        logger.info("Skipping CHUNK stage. Loading existing chunks.")
+        if not Path(config.output_path).exists():
+            raise RuntimeError(
+                f"Cannot skip chunking: existing chunks file {config.output_path} not found."
+            )
+        with open(config.output_path, "r", encoding="utf-8") as f:
+            kb_dataset = json.load(f)
+        logger.info(f"Loaded {len(kb_dataset)} chunks from {config.output_path}")
+    else:
+        # We are at or before the chunk stage
+        if config.use_existing_chunks and Path(config.output_path).exists():
+            logger.info("use_existing_chunks=True, loading chunks from disk.")
+            with open(config.output_path, "r", encoding="utf-8") as f:
                 kb_dataset = json.load(f)
-            logger.info(f"Loaded {len(kb_dataset)} existing chunks")
+            logger.info(f"Loaded {len(kb_dataset)} chunks from {config.output_path}")
         else:
-            logger.info("Starting document chunking...")
+            logger.info("Running CHUNK stage (creating chunks).")
             kb_dataset = process_chunks(config)
-            logger.info(f"Created {len(kb_dataset)} chunks")
-            # Push chunks if enabled
-            if config.push_to_hub and config.hub_username:
-                logger.info("Uploading chunks to Hub...")
-                upload_to_hub(config, kb_dataset, None)
+            logger.info(f"Created {len(kb_dataset)} chunks.")
+    
+    # If the last stage we want to run is CHUNK, we're done.
+    if to_stage == PipelineStage.CHUNK:
+        logger.info("Ending pipeline after CHUNK stage.")
+        return
 
-        # Step 2: Question Generation
-        train_dataset = None
-        metrics = None
+    # -------------------------------------------------------------------------
+    # 2. QUESTION GENERATION
+    # -------------------------------------------------------------------------
+    train_dataset = None
+    question_metrics = None
+    
+    if from_stage.value > PipelineStage.GENERATE.value:
+        # Skipping question generation, so load existing training data if we plan to do training next
+        logger.info("Skipping GENERATE stage. Checking if existing QnA data is needed.")
+        if config.train_embedding or to_stage.value >= PipelineStage.TRAIN.value:
+            # We'll need question data for training
+            if not Path(config.question_output_path).exists():
+                raise RuntimeError(
+                    f"Cannot skip question generation: no existing training data {config.question_output_path} found."
+                )
+            with open(config.question_output_path, "r", encoding="utf-8") as f:
+                train_dataset = json.load(f)
+            logger.info(f"Loaded {len(train_dataset)} QnA records from {config.question_output_path}")
+    else:
+        # We are at or before the GENERATE stage
         if config.generate_questions:
-            logger.info("Generating synthetic questions...")
-            train_dataset, metrics = generate_questions(config, kb_dataset)
-            logger.info(f"Generated {metrics['num_questions_deduped']} questions total")
-            logger.info(f"Created {len(train_dataset)} training records")
-            # Push updated dataset if enabled
-            if config.push_to_hub and config.hub_username:
-                logger.info("Uploading chunks and questions to Hub...")
-                upload_to_hub(config, kb_dataset, train_dataset)
+            logger.info("Running GENERATE stage (synthetic QnA creation).")
+            train_dataset, question_metrics = generate_questions(config, kb_dataset)
+            logger.info(f"Generated {len(train_dataset)} QnA records.")
+        else:
+            logger.info("generate_questions=False, skipping QnA creation.")
+            # If we skip generating but still want to train or upload,
+            # we must have an existing training file.
+            if config.train_embedding or to_stage == PipelineStage.TRAIN:
+                if not Path(config.question_output_path).exists():
+                    raise RuntimeError(
+                        "Cannot train without question data. Either enable generate_questions or provide existing QnA JSON."
+                    )
+                with open(config.question_output_path, "r", encoding="utf-8") as f:
+                    train_dataset = json.load(f)
+                logger.info(f"Loaded {len(train_dataset)} QnA records from {config.question_output_path}")
+    
+    # If the last stage we want to run is GENERATE, we can optionally upload or just end here:
+    if to_stage == PipelineStage.GENERATE:
+        logger.info("Ending pipeline after GENERATE stage.")
+        return
 
-        # Step 3: Training
+    # -------------------------------------------------------------------------
+    # 3. TRAIN EMBEDDING MODEL
+    # -------------------------------------------------------------------------
+    if from_stage.value > PipelineStage.TRAIN.value:
+        # Skipping training stage. Possibly going directly to upload stage
+        logger.info("Skipping TRAIN stage.")
+    else:
+        # We are at or before the TRAIN stage
         if config.train_embedding:
-            if train_dataset is None:
-                raise RuntimeError("Training enabled but no training data available")
-            logger.info("Training embedding model...")
+            logger.info("Running TRAIN stage (embedding model fine-tuning).")
+            if not train_dataset:
+                raise RuntimeError("Cannot train embedding model: no training data available.")
             train_model(config, kb_dataset, train_dataset)
-            # Note: Training has its own push_to_hub in its config
-            
-        logger.info("Pipeline complete!")
+        else:
+            logger.info("train_embedding=False, skipping training stage.")
+    
+    if to_stage == PipelineStage.TRAIN:
+        logger.info("Ending pipeline after TRAIN stage.")
+        return
+
+    # -------------------------------------------------------------------------
+    # 4. UPLOAD TO HUB
+    # -------------------------------------------------------------------------
+    # If from_stage.value > PipelineStage.UPLOAD.value, skip uploading altogether
+    if from_stage.value > PipelineStage.UPLOAD.value:
+        logger.info("Skipping UPLOAD stage. Pipeline complete.")
+        return
+    
+    if config.push_to_hub and config.hub_username:
+        logger.info("Running UPLOAD stage (pushing dataset and/or model to HF Hub).")
+        # If we still don't have `train_dataset` but the user wants to upload them, load from disk
+        if config.generate_questions and train_dataset is None:
+            with open(config.question_output_path, "r", encoding="utf-8") as f:
+                train_dataset = json.load(f)
         
-    except Exception as e:
-        logger.error(f"Pipeline failed: {str(e)}")
-        raise
+        upload_to_hub(
+            config,
+            kb_dataset=kb_dataset,
+            train_dataset=train_dataset,
+            question_metrics=question_metrics
+        )
+    else:
+        logger.info("push_to_hub=False or no hub_username provided; skipping upload.")
+
+    logger.info("Pipeline complete!")
 
 def run_pipeline_from_stage(config: PipelineConfig, start_stage: str):
     """Run pipeline starting from specified stage."""
