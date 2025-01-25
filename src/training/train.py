@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
-def load_main_config(config_path: str = "config.yaml") -> Dict:
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+def load_main_config(config_path_or_obj):
+    """Load configuration from path or use provided config object."""
+    if isinstance(config_path_or_obj, (str, bytes, os.PathLike)):
+        with open(config_path_or_obj, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    return config_path_or_obj.model_dump()
 
 def build_evaluation_structures(kb_dataset, test_dataset, kb_id_field="id", kb_text_field="text"):
     corpus = {row[kb_id_field]: row[kb_text_field] for row in kb_dataset}

@@ -1,11 +1,12 @@
-import yaml
-import json
+from typing import List, Dict, Optional, Any
 import logging
-import os
-import uuid
+import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field, field_validator
+import os
+import json
+import uuid
+from dataclasses import dataclass
 
 from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
@@ -17,256 +18,325 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+@dataclass
+class PipelineStage:
+    CHUNK = "chunk"
+    GENERATE = "generate"
+    TRAIN = "train"
+    UPLOAD = "upload"
 
-class ChunkerConfig(BaseModel):
+class TrainingConfig(BaseModel):
+    model_id: str = "nomic-ai/modernbert-embed-base"
+    output_dir: str = Field(..., description="Directory for model outputs")
+    epochs: int = 4
+    learning_rate: float = 2.0e-5
+    matryoshka_dimensions: List[int] = [768, 512, 256, 128, 64]
+    batch_size: int = 32
+    gradient_accumulation_steps: int = 16
+    metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
+    push_to_hub: bool = False
+    hub_model_id: Optional[str] = None
+
+class DeduplicationConfig(BaseModel):
+    enabled: bool = True
+    similarity_threshold: float = 0.85
+
+class PipelineConfig(BaseModel):
+    # Core settings
     path_to_knowledgebase: str = Field(..., description="Path to knowledge base directory")
     chunker: str = Field(..., description="Name of chunker to use")
     chunker_arguments: Dict[str, Any] = Field(default_factory=dict)
     output_path: str = Field(..., description="File path for saving the knowledgebase dataset")
-    generate_questions: bool = Field(False, description="Enable synthetic question generation")
-    question_output_path: Optional[str] = Field(
-        None, description="File path for saving the training dataset (questions)"
-    )
-    deduplication: Optional[Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "enabled": True, 
-            "similarity_threshold": 0.85
-        },
-        description="Configuration for question deduplication"
-    )
-    hub_username: Optional[str] = Field(None, description="Hugging Face username")
-    hub_token: Optional[str] = Field(None, description="Hugging Face token (will use HF_TOKEN env var if not provided)")
-    hub_private: bool = Field(True, description="Whether to create a private repository")
-    train_embedding: bool = Field(False, description="Whether to train an embedding model or not")
+    
+    # Question generation settings
+    generate_questions: bool = False
+    question_output_path: Optional[str] = None
+    deduplication: DeduplicationConfig = Field(default_factory=DeduplicationConfig)
 
+    # Hub settings
+    hub_username: Optional[str] = None
+    hub_token: Optional[str] = None
+    hub_private: bool = True
 
-def load_config(config_path: str) -> ChunkerConfig:
-    with open(config_path, 'r') as f:
+    # Training settings
+    train_embedding: bool = False
+    training: Optional[TrainingConfig] = None
+
+@field_validator('training')
+@classmethod
+def validate_training_config(cls, v, info):
+    if info.data.get('train_embedding', False):
+        if v is None:
+            raise ValueError("Training configuration required when train_embedding is True")
+    return v
+
+@field_validator('question_output_path')
+@classmethod
+def validate_question_path(cls, v, info):
+    if info.data.get('generate_questions', False) and not v:
+        raise ValueError("question_output_path required when generate_questions is True")
+    return v
+
+def load_pipeline_config(config_path: str = "config.yaml") -> PipelineConfig:
+    """Load and validate pipeline configuration."""
+    with open(config_path, 'r', encoding='utf-8') as f:
         raw_config = yaml.safe_load(f)
-    return ChunkerConfig(**raw_config)
+    return PipelineConfig(**raw_config)
 
-
-def process_files(config: ChunkerConfig):
-    """
-    Main function for:
-      1) Chunking all .txt files in `config.path_to_knowledgebase`.
-      2) Optionally generating synthetic questions.
-      3) Saving two separate datasets:
-         - Knowledgebase dataset (id, text, source)
-         - Training dataset (anchor, positive, question_id, chunk_id)
-    """
-
-    # --------------------------------------------------------------------------
-    # 1) GET THE CHUNKER CLASS
-    # --------------------------------------------------------------------------
-    try:
-        chunker_class = ChunkerRegistry.get_chunker(config.chunker)
-    except ValueError as e:
-        logger.error(str(e))
-        raise
-
-    # Make a copy of the chunker arguments so we can safely modify them
+def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
+    """Process documents into chunks."""
+    from chunking import ChunkerRegistry
+    
+    # Get chunker class
+    chunker_class = ChunkerRegistry.get_chunker(config.chunker)
+    
+    # Make a copy of chunker arguments
     args = config.chunker_arguments.copy()
-
-    # Resolve any string references to embedder or token counter
+    
+    # Resolve embedder or token counter references
     for key in ['embedding_function', 'length_function']:
         if key in args and isinstance(args[key], str):
+            from embeddings.base_embedder import EmbeddingManager
             resolver = (
-                EmbeddingManager.get_embedder
-                if 'embedding' in key
+                EmbeddingManager.get_embedder 
+                if 'embedding' in key 
                 else EmbeddingManager.get_token_counter
             )
             args[key] = resolver(args[key])
-
-    # Instantiate the chunker
+    
+    # Initialize chunker
     chunker = chunker_class(**args)
-
-    # --------------------------------------------------------------------------
-    # 2) CHUNK ALL .TXT FILES
-    # --------------------------------------------------------------------------
+    
+    # Process files
     base_path = Path(config.path_to_knowledgebase)
     results = []
-
+    
     for file_path in base_path.rglob('*.txt'):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read()
             chunks = chunker.split_text(text)
-            results.append({
-                "path": str(file_path.relative_to(base_path)),
-                "chunks": [
-                    {
-                        "id": str(uuid.uuid4()),
-                        "text": chunk,
-                    }
-                    for chunk in chunks
-                ],
-            })
+            source_path = str(file_path.relative_to(base_path))
+            
+            # Create records for each chunk
+            for chunk in chunks:
+                results.append({
+                    "id": str(uuid.uuid4()),
+                    "text": chunk,
+                    "source": source_path
+                })
+                
         except Exception as e:
             logger.error(f"Error processing {file_path}: {str(e)}")
             continue
+    
+    # Save results
+    output_path = Path(config.output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
+    
+    return results
 
-    # --------------------------------------------------------------------------
-    # 3) CREATE THE KNOWLEDGEBASE DATASET (id, text, source)
-    #    This will be saved to config.output_path
-    # --------------------------------------------------------------------------
-    knowledgebase_records = []
-    for file_entry in results:
-        source_path = file_entry["path"]
-        for chunk in file_entry["chunks"]:
-            knowledgebase_records.append({
-                "id": chunk["id"],
-                "text": chunk["text"],
-                "source": source_path
-            })
+def generate_questions(
+    config: PipelineConfig, 
+    kb_dataset: List[Dict[str, Any]]
+) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """Generate synthetic questions from chunks."""
+    from synth_dataset.question_generator import QuestionGenerator
+    
+    # Create question generator
+    generator = QuestionGenerator(
+        prompt_path="src/prompts/question_generation.txt",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        dedup_enabled=config.deduplication.enabled,
+        similarity_threshold=config.deduplication.similarity_threshold
+    )
+    
+    # Get unique texts
+    unique_texts = list({item["text"] for item in kb_dataset})
+    
+    # Generate questions
+    questions = generator.generate_for_chunks(unique_texts)
+    
+    # Track metrics
+    metrics = {
+        "num_questions_original": sum(len(generator._question_cache[chunk]) for chunk in generator._question_cache),
+        "num_questions_deduped": len(questions)
+    }
+    
+    # Create training records
+    train_records = []
+    for q in questions:
+        train_records.append({
+            "anchor": q["question"],
+            "positive": q["chunk_text"],
+            "question_id": q["id"],
+            "chunk_id": next(
+                item["id"] for item in kb_dataset 
+                if item["text"] == q["chunk_text"]
+            )
+        })
+    
+    # Save results
+    if config.question_output_path:
+        output_path = Path(config.question_output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(train_records, f, indent=2, ensure_ascii=False)
+    
+    return train_records, metrics
 
-    kb_output_path = Path(config.output_path)
-    kb_output_path.parent.mkdir(parents=True, exist_ok=True)
+def train_model(
+    config: PipelineConfig,
+    kb_dataset: List[Dict[str, Any]],
+    train_dataset: List[Dict[str, Any]]
+):
+    """Train the embedding model."""
+    from training.train import main as train_main
+    train_main(config)
 
-    with open(kb_output_path, 'w', encoding='utf-8') as f:
-        json.dump(knowledgebase_records, f, indent=2, ensure_ascii=False)
-
-    logger.info(f"Knowledgebase dataset saved to {config.output_path}")
-
-    # --------------------------------------------------------------------------
-    # 4) IF QUESTION GENERATION IS ENABLED, CREATE THE TRAINING DATASET
-    #    (anchor, positive, question_id, chunk_id)
-    #    This will be saved to config.question_output_path
-    # --------------------------------------------------------------------------
-    if config.generate_questions and config.question_output_path:
-
-        # Build a text -> [ (chunk_id, source_file) ] map
-        text_to_chunks_map = {}
-        for file_entry in results:
-            for chunk in file_entry["chunks"]:
-                text_val = chunk["text"]
-                if text_val not in text_to_chunks_map:
-                    text_to_chunks_map[text_val] = []
-                text_to_chunks_map[text_val].append({
-                    "id": chunk["id"],
-                    "source_file": file_entry["path"]
-                })
-
-        # We only need unique text values
-        unique_texts = list(text_to_chunks_map.keys())
-
-        # Create question generator with deduplication settings
-        dedup_config = config.deduplication or {}
-        generator = QuestionGenerator(
-            prompt_path="src/prompts/question_generation.txt",
-            api_key=os.getenv("OPENAI_API_KEY"),
-            dedup_enabled=dedup_config.get("enabled", True),
-            similarity_threshold=dedup_config.get("similarity_threshold", 0.92)
+def upload_to_hub(
+    config: PipelineConfig,
+    kb_dataset: List[Dict[str, Any]],
+    train_dataset: Optional[List[Dict[str, Any]]] = None,
+    question_metrics: Optional[Dict[str, int]] = None
+):
+    """Upload datasets to Hugging Face Hub."""
+    from hub_upload.dataset_pusher import DatasetPusher
+    
+    if not config.hub_username:
+        return
+        
+    try:
+        # Initialize pusher
+        pusher = DatasetPusher(
+            username=config.hub_username,
+            token=config.hub_token
         )
-
-        # Generate questions
-        question_entries = generator.generate_for_chunks(unique_texts)
-        original_question_count = sum(len(questions) for questions in generator._question_cache.values())
-
-        # Build the training dataset
-        # anchor = question
-        # positive = chunk text
-        # question_id = q["id"]
-        # chunk_id = chunk_info["id"]
-        train_records = []
-        for q in question_entries:
-            chunk_text = q.get("chunk_text")
-            anchor = q.get("question")
-            question_id = q.get("id")
-            if not (chunk_text and anchor and question_id):
-                continue
-
-            if chunk_text not in text_to_chunks_map:
-                # Should never happen unless chunk_text changed
-                logger.warning(f"Question generated for non-existent chunk: {chunk_text[:50]}...")
-                continue
-
-            # For each chunk that matches chunk_text, create a train record
-            for chunk_info in text_to_chunks_map[chunk_text]:
-                train_records.append({
-                    "anchor": anchor,
-                    "positive": chunk_text,
-                    "question_id": question_id,
-                    "chunk_id": chunk_info["id"]
-                })
-
-        # Save the training dataset
-        train_output_path = Path(config.question_output_path)
-        train_output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(train_output_path, 'w', encoding='utf-8') as f:
-            json.dump(train_records, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Training dataset saved to {config.question_output_path}")
-
-    kb_output_path = Path(config.output_path)
-    kb_output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(kb_output_path, 'w', encoding='utf-8') as f:
-        json.dump(knowledgebase_records, f, indent=2, ensure_ascii=False)
-    logger.info(f"Knowledgebase dataset saved to {config.output_path}")
-
-    # After saving train_records to JSON (if generated)
-    if config.generate_questions and config.question_output_path:
-        train_output_path = Path(config.question_output_path)
-        train_output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(train_output_path, 'w', encoding='utf-8') as f:
-            json.dump(train_records, f, indent=2, ensure_ascii=False)
-        logger.info(f"Training dataset saved to {config.question_output_path}")
-
-    # Upload to Hub if username is provided
-    if config.hub_username:
-        try:
-            # Initialize pusher
-            pusher = DatasetPusher(
-                username=config.hub_username,
-                token=config.hub_token
-            )
-            
-            # Get repository name from output path if not specified
-            repository_name = Path(config.output_path).stem
-            
-            # Collect chunker info
-            chunker_info = {
-                'chunker_name': config.chunker,
-                'chunker_params': config.chunker_arguments
+        
+        # Get repository name from output path
+        repository_name = Path(config.output_path).stem
+        
+        # Collect chunker info
+        chunker_info = {
+            'chunker_name': config.chunker,
+            'chunker_params': config.chunker_arguments
+        }
+        
+        # Collect question generation info if enabled
+        question_gen_info = None
+        if config.generate_questions and train_dataset:
+            question_gen_info = {
+                'model_name': "gpt-4o-mini",
+                'similarity_threshold': config.deduplication.similarity_threshold,
+                'num_questions': question_metrics['num_questions_original'] if question_metrics else len(train_dataset),
+                'num_deduped': question_metrics['num_questions_deduped'] if question_metrics else len(train_dataset)
             }
+        
+        # Push dataset
+        pusher.push_dataset(
+            repository_name=repository_name,
+            knowledgebase_path=config.output_path,
+            chunker_info=chunker_info,
+            train_path=config.question_output_path if train_dataset else None,
+            question_gen_info=question_gen_info,
+            private=config.hub_private
+        )
+    except Exception as e:
+        logger.error(f"Failed to upload to Hugging Face Hub: {str(e)}")
+
+def validate_pipeline_config(config: PipelineConfig):
+    """Validate pipeline configuration and dependencies."""
+    if config.train_embedding and not config.generate_questions:
+        raise ValueError(
+            "Training requires synthetic question generation. "
+            "Please enable generate_questions or disable train_embedding."
+        )
+    
+    if config.generate_questions and not config.question_output_path:
+        raise ValueError("Question generation enabled but no output path specified")
+
+def run_pipeline(config: PipelineConfig):
+    """Run the QuicKB pipeline with validated configuration."""
+    logger.info("Starting QuicKB pipeline...")
+    
+    try:
+        # Step 1: Chunking (Always required)
+        logger.info("Starting document chunking...")
+        kb_dataset = process_chunks(config)
+        logger.info(f"Created {len(kb_dataset)} chunks")
+        
+        # Step 2: Question Generation (Optional)
+        train_dataset = None
+        question_metrics = None
+        if config.generate_questions:
+            logger.info("Generating synthetic questions...")
+            train_dataset, question_metrics = generate_questions(config, kb_dataset)
+            logger.info(f"Generated {len(train_dataset)} training examples")
+        
+        # Step 3: Embedding Training (Optional)
+        if config.train_embedding:
+            if train_dataset is None:
+                raise RuntimeError("Training enabled but no training data available")
+            logger.info("Training embedding model...")
+            train_model(config, kb_dataset, train_dataset)
             
-            # Collect question generation info if enabled
-            question_gen_info = None
-            if config.generate_questions:
-                question_gen_info = {
-                    'model_name': "gpt-4o-mini",
-                    'similarity_threshold': config.deduplication.get('similarity_threshold', 0.85),
-                    'num_questions': original_question_count,  # Original count
-                    'num_deduped': len(train_records)          # After deduplication
-                }
+        # Optional: Upload to Hub
+        if config.hub_username:
+            logger.info("Uploading to Hugging Face Hub...")
+            upload_to_hub(config, kb_dataset, train_dataset, question_metrics)
             
-            # Push dataset
-            pusher.push_dataset(
-                repository_name=repository_name,
-                knowledgebase_path=config.output_path,
-                chunker_info=chunker_info,
-                train_path=config.question_output_path if config.generate_questions else None,
-                question_gen_info=question_gen_info,
-                private=config.hub_private
-            )
-        except Exception as e:
-            logger.error(f"Failed to upload to Hugging Face Hub: {str(e)}")
+        logger.info("Pipeline complete!")
+        
+    except Exception as e:
+        logger.error(f"Pipeline failed: {str(e)}")
+        raise
+
+def run_pipeline_from_stage(config: PipelineConfig, start_stage: str):
+    """Run pipeline starting from specified stage."""
+    if start_stage == PipelineStage.CHUNK:
+        run_pipeline(config)
+    elif start_stage == PipelineStage.GENERATE:
+        # Load existing chunks and continue
+        with open(config.output_path, 'r', encoding='utf-8') as f:
+            kb_dataset = json.load(f)
+        train_dataset = generate_questions(config, kb_dataset)
+        
+        if config.train_embedding:
+            train_model(config, kb_dataset, train_dataset)
+        if config.hub_username:
+            upload_to_hub(config, kb_dataset, train_dataset)
+            
+    elif start_stage == PipelineStage.TRAIN:
+        # Load existing data and train
+        with open(config.output_path, 'r', encoding='utf-8') as f:
+            kb_dataset = json.load(f)
+        with open(config.question_output_path, 'r', encoding='utf-8') as f:
+            train_dataset = json.load(f)
+            
+        train_model(config, kb_dataset, train_dataset)
+        if config.hub_username:
+            upload_to_hub(config, kb_dataset, train_dataset)
+            
+    elif start_stage == PipelineStage.UPLOAD:
+        # Just upload existing data
+        with open(config.output_path, 'r', encoding='utf-8') as f:
+            kb_dataset = json.load(f)
+        train_dataset = None
+        if config.question_output_path:
+            with open(config.question_output_path, 'r', encoding='utf-8') as f:
+                train_dataset = json.load(f)
+        upload_to_hub(config, kb_dataset, train_dataset)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("Starting chunking process...")
     try:
-        config = load_config("config.yaml")
-        process_files(config)
-        logger.info("Done chunking")
-
-      # If we want to automatically train embeddings:
-        from training.train import main as train_main
-        if config.train_embedding:
-            logger.info("Starting embedding training pipeline...")
-            train_main("config.yaml")
-            logger.info("Embedding training complete!")
+        config = load_pipeline_config("config.yaml")
+        validate_pipeline_config(config)
+        run_pipeline(config)
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
         raise

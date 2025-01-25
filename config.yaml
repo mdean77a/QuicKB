@@ -1,55 +1,9 @@
-
-# config_cluster_semantic_chunker.yaml
-
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "ClusterSemanticChunker"
-# chunker_arguments:
-#   embedding_function: "openai"  # Can be a string identifier for a registered embedder or a custom embedder object
-#   max_chunk_size: 400           # Maximum number of tokens per chunk
-#   min_chunk_size: 50            # Minimum number of tokens per chunk
-#   length_function: null         # Optional: Custom length function (leave null to use default)
-# output_path: "./output/cluster_chunks.json"
-
-# # config_fixed_token_chunker.yaml
-
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "FixedTokenChunker"
-# chunker_arguments:
-#   encoding_name: "cl100k_base"              # Tokenizer encoding name
-#   model_name: "text-embedding-3-large"      # OpenAI embedding model name
-#   chunk_size: 400                          # Maximum number of tokens per chunk
-#   chunk_overlap: 50                        # Number of overlapping tokens between chunks
-# output_path: "./output/fixed_token_chunks.json"
-
-# # config_kamradt_modified_chunker.yaml
-
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "KamradtModifiedChunker"
-# chunker_arguments:
-#   avg_chunk_size: 400                      # Target average number of tokens per chunk
-#   min_chunk_size: 50                       # Minimum number of tokens per chunk
-#   embedding_function: "openai"             # Can be a string identifier for a registered embedder or a custom embedder object
-#   length_function: null                    # Optional: Custom length function (leave null to use default)
-# output_path: "./output/kamradt_chunks.json"
-
-# # config_llm_semantic_chunker.yaml
-
-# path_to_knowledgebase: "./testing/knowledgebase"
-# chunker: "LLMSemanticChunker"
-# chunker_arguments:
-#   organisation: "openai"                    # "openai" or "anthropic"
-#   # api_key: "your_api_key_here"              # Your API key for the chosen organization
-#   model_name: "gpt-4o"                      # Optional: Specific model name to use
-# output_path: "./output/llm_semantic_chunks.json"
-
-
-
-
-# config_recursive_token_chunker.yaml
-
+# Core Settings
 path_to_knowledgebase: "./testing/knowledgebase"
-
 chunker: "RecursiveTokenChunker"
+output_path: "./output/knowledgebase-quickb.json"
+
+# Chunking Configuration
 chunker_arguments:
   chunk_size: 400
   chunk_overlap: 0
@@ -57,24 +11,24 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
-output_path: "./output/knowledgebase-quickb-legal.json"
 
+# Question Generation Settings
 generate_questions: true
 question_output_path: "./output/train_data.json"
-
 deduplication:
   enabled: true
-  similarity_threshold: 0.8
+  similarity_threshold: 0.85
 
-hub_username: AdamLucek  
-hub_token: null     
+# Hugging Face Hub Settings
+hub_username: "AdamLucek"  
+hub_token: null     # Will use HF_TOKEN environment variable if not specified
 hub_private: false
 
+# Training Settings
 train_embedding: true
-
 training:
   model_id: "nomic-ai/modernbert-embed-base"
-  output_dir: "./output/modernbert_legal_mtl"
+  output_dir: "./output/modernbert_mtl"
   epochs: 4
   learning_rate: 2.0e-5
   matryoshka_dimensions: [768, 512, 256, 128, 64]
@@ -82,4 +36,64 @@ training:
   gradient_accumulation_steps: 16
   metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   push_to_hub: true
-  hub_model_id: "AdamLucek/modernbert-embed-base-quickb-legal"
+  hub_model_id: "AdamLucek/modernbert-embed-quickb"
+
+# ==============================
+
+# # Just chunking
+# path_to_knowledgebase: "./testing/knowledgebase"
+# chunker: "RecursiveTokenChunker"
+# chunker_arguments:
+#   chunk_size: 400
+#   chunk_overlap: 0
+#   separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
+# output_path: "./output/kb.json"
+
+# # Disable optional features
+# generate_questions: false
+# train_embedding: false
+
+# ===============================
+
+# # Chunking + Question Generation
+# path_to_knowledgebase: "./testing/knowledgebase"
+# chunker: "RecursiveTokenChunker"
+# chunker_arguments:
+#   chunk_size: 400
+# output_path: "./output/kb.json"
+
+# # Enable question generation
+# generate_questions: true
+# question_output_path: "./output/train.json"
+# deduplication:
+#   enabled: true
+#   similarity_threshold: 0.85
+
+# # Disable training
+# train_embedding: false
+
+# ===============================
+
+# # Chunking + Questions + Model Training 
+# path_to_knowledgebase: "./testing/knowledgebase"
+# chunker: "ClusterSemanticChunker"
+# chunker_arguments:
+#   embedding_function: "openai"
+#   max_chunk_size: 400
+#   min_chunk_size: 50
+# output_path: "./output/kb.json"
+
+# generate_questions: true
+# question_output_path: "./output/train.json"
+# deduplication:
+#   enabled: true
+#   similarity_threshold: 0.85
+
+# train_embedding: true
+# training:
+#   model_id: "nomic-ai/modernbert-embed-base"
+#   output_dir: "./output/model"
+#   epochs: 4
+
+# hub_username: "YourUsername"
+# hub_private: true
