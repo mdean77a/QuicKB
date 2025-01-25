@@ -148,7 +148,7 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     # Process files
     base_path = Path(config.path_to_knowledgebase)
     results = []
-    
+    total_chunks = 0
     for file_path in base_path.rglob('*.txt'):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -163,10 +163,15 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
                     "text": chunk,
                     "source": source_path
                 })
-                
+            
+            logger.info(f"Created {len(chunks)} chunks from {file_path}")
+            total_chunks += len(chunks)
+        
         except Exception as e:
             logger.error(f"Error processing {file_path}: {str(e)}")
             continue
+
+    logger.info(f"Created {total_chunks} chunks in total")
     
     # Save results
     output_path = Path(config.chunker_config.output_path)
