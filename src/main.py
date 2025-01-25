@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any
 import logging
 import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 import os
 import json
 import uuid
@@ -25,6 +25,10 @@ class PipelineStage(Enum):
     UPLOAD = auto()
 
 class TrainingConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid'  # Prevent extra fields
+    )
+    
     model_id: str = "nomic-ai/modernbert-embed-base"
     output_dir: str
     epochs: int = 4
@@ -37,28 +41,35 @@ class TrainingConfig(BaseModel):
     hub_model_id: Optional[str] = None
     hub_private: bool = False
 
-class DeduplicationConfig(BaseModel):
-    enabled: bool = True
+class QuestionGeneratorConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid'
+    )
+    
+    output_path: str
+    model: str
+    model_api_base: Optional[str] = None
+    embedding_model: Optional[str] = None
+    embedding_api_base: Optional[str] = None
+    max_workers: int = 20
+    deduplication_enabled: bool = True
     similarity_threshold: float = 0.85
 
 class PipelineConfig(BaseModel):
-    pipeline: Dict[str, str] = Field(..., description="Contains from_stage and to_stage")
+    model_config = ConfigDict(
+        extra='forbid'
+    )
+    
+    pipeline: Dict[str, str]
     
     # Document chunking
     path_to_knowledgebase: str
     chunker: str
-    chunker_arguments: Dict[str, Any] = Field(default_factory=dict)
+    chunker_arguments: Dict[str, Any]
     output_path: str
 
     # Synthetic question generation
-    question_output_path: Optional[str]
-    question_model: Optional[str]
-    question_max_workers: Optional[int]
-    question_model: Optional[str] = None
-    question_embedding_model: Optional[str] = None
-    question_model_api_base: Optional[str] = None
-    question_embedding_api_base: Optional[str] = None
-    deduplication: DeduplicationConfig = Field(default_factory=DeduplicationConfig)
+    question_generation: Optional[QuestionGeneratorConfig] = None
 
     # Hugging Face Hub
     hub_username: Optional[str] = None
@@ -67,6 +78,15 @@ class PipelineConfig(BaseModel):
 
     # Training
     training: Optional[TrainingConfig] = None
+    
+    @classmethod
+    def from_yaml(cls, yaml_path: str | Path) -> "PipelineConfig":
+        """Load configuration from a YAML file."""
+        import yaml
+        
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        return cls.model_validate(data)
 
 @field_validator('chunker')
 @classmethod
@@ -77,11 +97,9 @@ def validate_chunker_type(cls, v, info):
             raise ValueError(f"Unknown chunker: {v}")
     return v
 
-def load_pipeline_config(config_path: str = "config.yaml") -> PipelineConfig:
+def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
     """Load and validate pipeline configuration."""
-    with open(config_path, 'r', encoding='utf-8') as f:
-        raw_config = yaml.safe_load(f)
-    return PipelineConfig(**raw_config)
+    return PipelineConfig.from_yaml(config_path)
 
 def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     """Process documents into chunks."""
@@ -148,15 +166,18 @@ def generate_questions(
     
     logger = logging.getLogger(__name__)
     
+    if not config.question_generation:
+        raise ValueError("Question generation config is required but not provided")
+    
     generator = QuestionGenerator(
         prompt_path="src/prompts/question_generation.txt",
-        llm_model=config.question_model,
-        embedding_model=config.question_embedding_model,
-        dedup_enabled=config.deduplication.enabled,
-        similarity_threshold=config.deduplication.similarity_threshold,
-        max_workers=config.question_max_workers,
-        model_api_base=config.question_model_api_base,
-        embedding_api_base=config.question_embedding_api_base,
+        llm_model=config.question_generation.model,
+        embedding_model=config.question_generation.embedding_model,
+        dedup_enabled=config.question_generation.deduplication_enabled,
+        similarity_threshold=config.question_generation.similarity_threshold,
+        max_workers=config.question_generation.max_workers,
+        model_api_base=config.question_generation.model_api_base,
+        embedding_api_base=config.question_generation.embedding_api_base,
     )
     
     # Get unique texts and build a text-to-id mapping
@@ -181,7 +202,7 @@ def generate_questions(
     }
     logger.info(f"Question generation metrics: {metrics}")
     
-    # Create training records with better error handling
+    # Create training records
     train_records = []
     skipped_questions = 0
     for q in questions:
@@ -207,9 +228,9 @@ def generate_questions(
     
     logger.info(f"Created {len(train_records)} training records (skipped {skipped_questions} questions)")
     
-    # Save results with error handling
-    if config.question_output_path:
-        output_path = Path(config.question_output_path)
+    # Save results
+    if config.question_generation and config.question_generation.output_path:
+        output_path = Path(config.question_generation.output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:

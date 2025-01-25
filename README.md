@@ -67,7 +67,7 @@ The pipeline is controlled through a single `config.yaml` file. Here's a complet
 # Pipeline Stage Control
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
-  to_stage: "GENERATE"
+  to_stage: "UPLOAD"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -81,17 +81,17 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
-output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
+output_path: "./output/knowledgebase-quickb.json"
 
 # Synthetic Dataset Generation
-question_output_path: "./output/train_data.json" # Generated Questions Output Path
-question_model: "openai/gpt-4o-mini"
-question_model_api_base: null
-question_embedding_model: "text-embedding-3-large"
-question_embedding_api_base: null
-question_max_workers: 20
-deduplication:
-  enabled: true
+question_generation:
+  output_path: "./output/train_data.json"
+  model: "openai/gpt-4o-mini"
+  model_api_base: null
+  embedding_model: "text-embedding-3-large"
+  embedding_api_base: null
+  max_workers: 20
+  deduplication_enabled: true
   similarity_threshold: 0.85
 
 # Hugging Face Hub info
@@ -216,7 +216,7 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 
-- Cleaner handling of dedup configs (basically get rid of it cuz whys it there)
+- pydantic v2 fields warning (and cleaner config args in general)
 - LiteLLM integration into chunkers
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
