@@ -141,51 +141,52 @@ training:
 
 1. **Fixed Token Chunker**
 ```yaml
-chunker: "FixedTokenChunker"
-chunker_arguments:
-  encoding_name: "cl100k_base"
-  model_name: "text-embedding-3-large"
-  chunk_size: 400
-  chunk_overlap: 50
-  length_type: "token"
+chunker_config:
+  output_path: "./output/fixed_token_chunks.json"
+  chunker: "FixedTokenChunker"
+  chunker_arguments:
+    encoding_name: "cl100k_base"
+    model_name: "text-embedding-3-large"  # Only needed if using model-specific tokenizer
+    chunk_size: 400
+    chunk_overlap: 50
+    length_type: "token"
 ```
 
 2. **Cluster Semantic Chunker**
 ```yaml
-chunker: "ClusterSemanticChunker"
-chunker_arguments:
-  max_chunk_size: 400
-  min_chunk_size: 50
-  length_type: "token"
-  litellm_config:
-    model: "openai/gpt-4o"
-    model_api_base: null
-    embedding_model: "text-embedding-3-large"
-    embedding_api_base: null
+chunker_config:
+  output_path: "./output/semantic_clusters.json"
+  chunker: "ClusterSemanticChunker"
+  chunker_arguments:
+    max_chunk_size: 400    # Max tokens after clustering
+    min_chunk_size: 50     # Initial split size
+    length_type: "token"
+    litellm_config:
+      embedding_model: "text-embedding-3-large"  # Required for semantic clustering
 ```
 
 3. **LLM Semantic Chunker**
 ```yaml
-chunker: "LLMSemanticChunker"
-chunker_arguments:
-  length_type: "token"
-  litellm_config:
-    model: "openai/gpt-4o"
-    model_api_base: null
+chunker_config:
+  output_path: "./output/llm_semantic_chunks.json"
+  chunker: "LLMSemanticChunker"
+  chunker_arguments:
+    length_type: "token"
+    litellm_config:
+      model: "openai/gpt-4o"  # LLM for split decisions
 ```
 
-4. **Kamradt Modified Chunker**
+4. **Kamradt Modified Semantic Chunker**
 ```yaml
-chunker: "KamradtModifiedChunker"
-chunker_arguments:
-  avg_chunk_size: 400
-  min_chunk_size: 50
-  length_type: "token"
-  litellm_config:
-    model: "openai/gpt-4o"
-    model_api_base: null
-    embedding_model: "text-embedding-3-large"
-    embedding_api_base: null
+chunker_config:
+  output_path: "./output/kamradt_chunks.json"
+  chunker: "KamradtModifiedChunker"
+  chunker_arguments:
+    avg_chunk_size: 400    # Target average size
+    min_chunk_size: 50     # Minimum initial split
+    length_type: "token"
+    litellm_config: 
+      embedding_model: "text-embedding-3-large"  # For similarity calculations
 ```
 
 ### LiteLLM Integration
