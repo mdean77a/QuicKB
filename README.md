@@ -27,8 +27,8 @@ Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunki
 
 ### RAG Training Data Generation
 - Automatic question generation from chunks
+- Private & Local Model Support via [LiteLLM](https://docs.litellm.ai/docs/)
 - Semantic deduplication of similar questions
-- Configurable similarity thresholds
 - Parallel processing for speed
 
 ### Embedding Optimization
@@ -67,7 +67,7 @@ The pipeline is controlled through a single `config.yaml` file. Here's a complet
 # Pipeline Stage Control
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
-  to_stage: "UPLOAD"
+  to_stage: "GENERATE"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -86,7 +86,9 @@ output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
 # Synthetic Dataset Generation
 question_output_path: "./output/train_data.json" # Generated Questions Output Path
 question_model: "openai/gpt-4o-mini"
+question_model_api_base: null
 question_embedding_model: "text-embedding-3-large"
+question_embedding_api_base: null
 question_max_workers: 20
 deduplication:
   enabled: true
@@ -108,6 +110,7 @@ training:
   gradient_accumulation_steps: 16
   metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   push_to_hub: true
+  hub_private: false
   hub_model_id: "AdamLucek/modernbert-embed-quickb"
 ```
 
@@ -213,8 +216,6 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 
-- LiteLLM docs in readme
-- LiteLLM base url passthrough as well
 - Cleaner handling of dedup configs (basically get rid of it cuz whys it there)
 - LiteLLM integration into chunkers
 - Custom Model Card (Using base from SBERT currently)

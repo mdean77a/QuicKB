@@ -1,7 +1,7 @@
 # Pipeline Stage Control
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
-  to_stage: "UPLOAD"
+  to_stage: "GENERATE"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -20,7 +20,9 @@ output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
 # Synthetic Dataset Generation
 question_output_path: "./output/train_data.json" # Generated Questions Output Path
 question_model: "openai/gpt-4o-mini"
+question_model_api_base: null
 question_embedding_model: "text-embedding-3-large"
+question_embedding_api_base: null
 question_max_workers: 20
 deduplication:
   enabled: true

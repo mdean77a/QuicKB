@@ -54,8 +54,10 @@ class PipelineConfig(BaseModel):
     question_output_path: Optional[str]
     question_model: Optional[str]
     question_max_workers: Optional[int]
-    question_model: Optional[str]
-    question_embedding_model: Optional[str]
+    question_model: Optional[str] = None
+    question_embedding_model: Optional[str] = None
+    question_model_api_base: Optional[str] = None
+    question_embedding_api_base: Optional[str] = None
     deduplication: DeduplicationConfig = Field(default_factory=DeduplicationConfig)
 
     # Hugging Face Hub
@@ -148,12 +150,13 @@ def generate_questions(
     
     generator = QuestionGenerator(
         prompt_path="src/prompts/question_generation.txt",
-        api_key=os.getenv("OPENAI_API_KEY"),
         llm_model=config.question_model,
         embedding_model=config.question_embedding_model,
         dedup_enabled=config.deduplication.enabled,
         similarity_threshold=config.deduplication.similarity_threshold,
         max_workers=config.question_max_workers,
+        model_api_base=config.question_model_api_base,
+        embedding_api_base=config.question_embedding_api_base,
     )
     
     # Get unique texts and build a text-to-id mapping

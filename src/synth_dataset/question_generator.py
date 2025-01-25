@@ -11,7 +11,6 @@ from .deduplicator import QuestionDeduplicator
 logger = logging.getLogger(__name__)
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
-
 class QuestionGenerator:
     def __init__(
         self, 
@@ -21,7 +20,9 @@ class QuestionGenerator:
         embedding_model: str = "text-embedding-3-large",  # Added embedding model parameter
         dedup_enabled: bool = True,
         similarity_threshold: float = 0.85,
-        max_workers: int = 20
+        max_workers: int = 20,
+        model_api_base: str = None,  # API base for LLM model
+        embedding_api_base: str = None  # API base for embeddings
     ):
         self.api_key = api_key
         self.llm_model = llm_model
@@ -31,6 +32,8 @@ class QuestionGenerator:
         self.dedup_enabled = dedup_enabled
         self.deduplicator = QuestionDeduplicator(similarity_threshold) if dedup_enabled else None
         self.max_workers = max_workers
+        self.model_api_base = model_api_base
+        self.embedding_api_base = embedding_api_base
 
     def _load_prompt(self, path: str) -> str:
         with open(path, 'r') as f:
@@ -38,15 +41,22 @@ class QuestionGenerator:
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def _generate(self, chunk: str) -> str:
-        response = completion(
-            model=self.llm_model,
-            messages=[
+        # Prepare completion kwargs
+        completion_kwargs = {
+            "model": self.llm_model,
+            "messages": [
                 {"role": "system", "content": self.prompt},
                 {"role": "user", "content": f"Text: {chunk}"}
             ],
-            temperature=0.7,
-            api_key=self.api_key
-        )
+            "temperature": 0.7,
+            "api_key": self.api_key
+        }
+        
+        # Add model_api_base if provided
+        if self.model_api_base:
+            completion_kwargs["api_base"] = self.model_api_base
+            
+        response = completion(**completion_kwargs)
         return response.choices[0].message.content
 
     def generate_for_chunk(self, chunk: str) -> List[Dict]:
@@ -99,11 +109,19 @@ class QuestionGenerator:
         if self.dedup_enabled and self.deduplicator and results:
             # Get embeddings using LiteLLM
             questions_text = [q["question"] for q in results]
-            response = embedding(
-                model=self.embedding_model,
-                input=questions_text,
-                api_key=self.api_key
-            )
+            
+            # Prepare embedding kwargs
+            embedding_kwargs = {
+                "model": self.embedding_model,
+                "input": questions_text,
+                "api_key": self.api_key
+            }
+            
+            # Add embedding_api_base if provided
+            if self.embedding_api_base:
+                embedding_kwargs["api_base"] = self.embedding_api_base
+            
+            response = embedding(**embedding_kwargs)
             embeddings = [data["embedding"] for data in response.data]
             
             # Deduplicate questions
