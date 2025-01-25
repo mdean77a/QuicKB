@@ -236,7 +236,7 @@ def main(config):
 
     # Setup training arguments
     args = SentenceTransformerTrainingArguments(
-        output_dir=config.training.output_dir,
+        output_dir=config.training.output_path,
         num_train_epochs=config.training.epochs,
         per_device_train_batch_size=config.training.batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,

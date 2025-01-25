@@ -74,7 +74,7 @@ class TrainingConfig(BaseModel):
     )
     
     model_id: str = "nomic-ai/modernbert-embed-base"
-    output_dir: str
+    output_path: str
     epochs: int = 4
     learning_rate: float = 2.0e-5
     matryoshka_dimensions: list[int] = [768, 512, 256, 128, 64]

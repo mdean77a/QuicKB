@@ -44,7 +44,7 @@ question_generation:
 # Training config
 training:
   model_id: "nomic-ai/modernbert-embed-base"
-  output_dir: "./output/modernbert_mtl"
+  output_path: "./output/modernbert_mtl"
   epochs: 4
   learning_rate: 2.0e-5
   matryoshka_dimensions: [768, 512, 256, 128, 64]
