@@ -64,45 +64,76 @@ python src/main.py
 The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example with all available options:
 
 ```yaml
-# Core Settings
-path_to_knowledgebase: "./testing/knowledgebase"  # Input directory
-output_path: "./output/knowledgebase-quickb.json" # Output path
+# ------------------------------------------------------------------
+# Full Pipeline Example (Chunk → Questions → Train → Upload)
+# ------------------------------------------------------------------
+path_to_knowledgebase: "./knowledgebase"    # Input directory with .txt files
+output_path: "./output/kb.json"            # Processed chunks output
 
-# Chunking Configuration
-chunker: "RecursiveTokenChunker"
-chunker_arguments:
+chunker: "RecursiveTokenChunker"           # Chunking strategy
+chunker_arguments:                         # Chunker-specific parameters
   chunk_size: 400
   chunk_overlap: 0
   separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
-  keep_separator: true
-  is_separator_regex: false
-  length_function: "character"
 
-# Question Generation
-generate_questions: true
-question_output_path: "./output/train_data.json"
+generate_questions: true                   # Enable QnA generation
+question_output_path: "./output/train.json" 
 deduplication:
   enabled: true
-  similarity_threshold: 0.8
+  similarity_threshold: 0.85
 
-# Hugging Face Integration
-hub_username: "YourUsername"
-hub_token: null     # Uses HF_TOKEN environment variable
-hub_private: false
-
-# Embedding Training
-train_embedding: true
+train_embedding: true                      # Enable model training
 training:
   model_id: "nomic-ai/modernbert-embed-base"
-  output_dir: "./output/modernbert_mtl"
+  output_dir: "./output/model"
   epochs: 4
   learning_rate: 2.0e-5
   matryoshka_dimensions: [768, 512, 256, 128, 64]
-  batch_size: 32
-  gradient_accumulation_steps: 16
-  metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   push_to_hub: true
-  hub_model_id: "username/model-name"
+  hub_model_id: "your-username/model-name"
+
+hub_username: "your-username"              # Hugging Face Hub settings
+push_to_hub: true
+hub_private: false
+
+# =====================================================
+# Partial Configurations 
+# =====================================================
+
+# --------------------------------------------------
+# 1. Chunking Only Configuration
+# --------------------------------------------------
+# use_existing_chunks: false
+# generate_questions: false
+# train_embedding: false
+# push_to_hub: false
+
+# --------------------------------------------------
+# 2. Generate Questions from Existing Chunks
+# --------------------------------------------------
+# use_existing_chunks: true
+# output_path: "./existing_chunks.json"
+# generate_questions: true
+# train_embedding: false
+
+# --------------------------------------------------
+# 3. Training Only (Existing Chunks + Questions)
+# --------------------------------------------------
+# use_existing_chunks: true
+# output_path: "./existing_chunks.json"
+# question_output_path: "./existing_questions.json"
+# generate_questions: false
+# train_embedding: true
+
+# --------------------------------------------------
+# 4. Upload Only (Existing Data)
+# --------------------------------------------------
+# use_existing_chunks: true
+# output_path: "./existing_chunks.json"
+# question_output_path: "./existing_questions.json"
+# generate_questions: false
+# train_embedding: false
+# push_to_hub: true
 ```
 
 ### Alternative Chunker Configurations
@@ -207,16 +238,13 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 - Custom Model Card (Using base from SBERT currently)
-- More Robust Config Argument Handling (i.e. some are hardcoded, others not, and issues with nested access)
-- Simplify Configs and Intermediate Steps (remove redundant or not so useful options)
-- Better Error Logging
 - Different Model Support for question generation
+- Better handling of intermediate step config logic
 - Handle when existing repo for model is in the way
-- HF login issue with training
-- Dependencies for training with GPU/CPU
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development
 - Refactor the steps to their respective sub folders out from main
+- python packages for whether ur cpu or gpu
 - Readme notes about huggingface
 
 ## License
