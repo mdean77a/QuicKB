@@ -194,7 +194,7 @@ def main(config):
     )
 
     # Setup evaluators
-    dim_list = config.training.matryoshka_dimensions
+    dim_list = config.training.model_settings.matryoshka_dimensions
     evaluators = []
     for d in dim_list:
         evaluators.append(
@@ -211,12 +211,12 @@ def main(config):
 
     # Initialize base model and run baseline evaluation
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    base_model = SentenceTransformer(config.training.model_id, device=device)
+    base_model = SentenceTransformer(config.training.model_settings.model_id, device=device)
     baseline_results = run_baseline_eval(base_model, evaluator, dim_list)
 
     logger.info("Re-initializing for training.")
     model = SentenceTransformer(
-        config.training.model_id,
+        config.training.model_settings.model_id,
         device=device,
         model_kwargs={"attn_implementation": "sdpa"},
         model_card_data=SentenceTransformerModelCardData(
@@ -236,11 +236,11 @@ def main(config):
 
     # Setup training arguments
     args = SentenceTransformerTrainingArguments(
-        output_dir=config.training.output_path,
-        num_train_epochs=config.training.epochs,
-        per_device_train_batch_size=config.training.batch_size,
-        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-        learning_rate=config.training.learning_rate,
+        output_dir=config.training.training_arguments.output_path,
+        num_train_epochs=config.training.training_arguments.epochs,
+        per_device_train_batch_size=config.training.training_arguments.batch_size,
+        gradient_accumulation_steps=config.training.training_arguments.gradient_accumulation_steps,
+        learning_rate=config.training.training_arguments.learning_rate,
         warmup_ratio=0.1,
         lr_scheduler_type="cosine",
         optim="adamw_torch_fused",
@@ -252,7 +252,7 @@ def main(config):
         logging_steps=10,
         save_total_limit=3,
         load_best_model_at_end=True,
-        metric_for_best_model=config.training.metric_for_best_model,
+        metric_for_best_model=config.training.model_settings.metric_for_best_model,
         report_to="none",
     )
 
@@ -272,7 +272,7 @@ def main(config):
     trainer.save_model()
     
     # Evaluate fine-tuned model
-    fine_tuned_model = SentenceTransformer(config.training.output_dir, device=device)
+    fine_tuned_model = SentenceTransformer(config.training.training_arguments.output_path, device=device)
     final_results = run_final_eval(fine_tuned_model, evaluator, dim_list)
 
     # Save metrics
@@ -280,25 +280,26 @@ def main(config):
         baseline_results, 
         final_results, 
         dim_list, 
-        path=f"{config.training.output_dir}/metrics_comparison.txt"
+        path=f"{config.training.training_arguments.output_path}/metrics_comparison.txt"
     )
 
     # Handle model upload if configured
-    if config.training.push_to_hub:
+    if (config.training.upload_config and 
+        config.training.upload_config.push_to_hub):
         HF_TOKEN = os.getenv("HF_TOKEN", "")
         if HF_TOKEN:
             login(token=HF_TOKEN)
         else:
             logger.warning("No HF_TOKEN in env, attempting login anyway.")
             
-        if not config.training.hub_model_id:
+        if not config.training.upload_config.hub_model_id:
             logger.warning("No hub_model_id specified, skipping upload")
         else:
-            logger.info(f"Pushing model to HF Hub: {config.training.hub_model_id}")
+            logger.info(f"Pushing model to HF Hub: {config.training.upload_config.hub_model_id}")
             trainer.model.push_to_hub(
-                config.training.hub_model_id, 
+                config.training.upload_config.hub_model_id, 
                 exist_ok=True, 
-                private=config.training.hub_private
+                private=config.training.upload_config.hub_private
             )
             logger.info("Upload complete!")
 

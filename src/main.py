@@ -26,85 +26,66 @@ class PipelineStage(Enum):
     TRAIN = auto()
 
 class UploadConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
+    model_config = ConfigDict(extra='forbid')
     
     push_to_hub: bool = False
     hub_private: bool = False
     hub_dataset_id: Optional[str] = None
+    hub_model_id: Optional[str] = None  # Added for model uploads
+
+class ModelSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    
+    model_id: str
+    matryoshka_dimensions: List[int] = [768, 512, 256, 128, 64]
+    metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
+
+class TrainingArguments(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    
+    output_path: str
+    epochs: int = 4
+    learning_rate: float = 2.0e-5
+    batch_size: int = 32
+    gradient_accumulation_steps: int = 16
+
+class TrainingConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    
+    model_settings: ModelSettings
+    training_arguments: TrainingArguments
+    upload_config: Optional[UploadConfig] = None
 
 class ChunkerConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
+    model_config = ConfigDict(extra='forbid')
     
     chunker: str
     chunker_arguments: Dict[str, Any]
     output_path: str
     upload_config: Optional[UploadConfig] = None
 
-    @field_validator('chunker')
-    @classmethod
-    def validate_chunker_type(cls, v, info):
-        # Only validate if output_path doesn't exist
-        if not os.path.exists(info.data.get('output_path', '')):
-            if v not in ChunkerRegistry._chunkers:
-                raise ValueError(f"Unknown chunker: {v}")
-        return v
-
 class QuestionGeneratorConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
+    model_config = ConfigDict(extra='forbid')
     
     output_path: str
     model: str
     model_api_base: Optional[str] = None
-    embedding_model: Optional[str] = None 
+    embedding_model: Optional[str] = None
     embedding_api_base: Optional[str] = None
     max_workers: int = 20
     deduplication_enabled: bool = True
     similarity_threshold: float = 0.85
     upload_config: Optional[UploadConfig] = None
 
-class TrainingConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
-    
-    model_id: str = "nomic-ai/modernbert-embed-base"
-    output_path: str
-    epochs: int = 4
-    learning_rate: float = 2.0e-5
-    matryoshka_dimensions: list[int] = [768, 512, 256, 128, 64]
-    batch_size: int = 32
-    gradient_accumulation_steps: int = 16
-    metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
-    push_to_hub: bool = False
-    hub_private: bool = False
-    hub_model_id: Optional[str] = None
-
 class PipelineConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
+    model_config = ConfigDict(extra='forbid')
     
-    # Pipeline control
     pipeline: Dict[str, str]
-    
-    # Base HF credentials
     hub_username: Optional[str] = None
     hub_token: Optional[str] = None
-    
-    # Document chunking
     path_to_knowledgebase: str
     chunker_config: ChunkerConfig
-    
-    # Question generation
     question_generation: Optional[QuestionGeneratorConfig] = None
-    
-    # Training
     training: Optional[TrainingConfig] = None
 
 def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
