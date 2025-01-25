@@ -10,6 +10,7 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
+
 output_path: "./output/knowledgebase-quickb.json"
 
 generate_questions: true
