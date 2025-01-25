@@ -35,6 +35,7 @@ class TrainingConfig(BaseModel):
     metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
     push_to_hub: bool = False
     hub_model_id: Optional[str] = None
+    hub_private: bool = False
 
 class DeduplicationConfig(BaseModel):
     enabled: bool = True

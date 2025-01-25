@@ -280,7 +280,7 @@ def main(config_path: str = "config.yaml"):
         hub_repo_id = train_cfg.get("hub_model_id", "YourUserName/modernbert-embed-ft")
         logger.info(f"Pushing model to HF Hub: {hub_repo_id}")
         
-        trainer.model.push_to_hub(hub_repo_id, exist_ok=True)
+        trainer.model.push_to_hub(hub_repo_id, exist_ok=True, private=train_cfg.get("hub_private", False))
         
         logger.info("Upload complete!")
 

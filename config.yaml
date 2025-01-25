@@ -42,4 +42,5 @@ training:
   gradient_accumulation_steps: 16
   metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   push_to_hub: true
+  hub_private: false
   hub_model_id: "AdamLucek/modernbert-embed-quickb"
