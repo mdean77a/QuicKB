@@ -4,9 +4,6 @@
 
 Optimized Retrieval Knowledge Base & Embedding Model Finetuning
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
-
 ## Overview
 
 QuicKB takes unstructured text documents and creates retrieval-optimized knowledge bases through a complete pipeline that handles:
@@ -83,18 +80,19 @@ chunker_arguments:
 
 output_path: "./output/knowledgebase-quickb.json"
 
-generate_questions: true
+# Where to store generated questions
 question_output_path: "./output/train_data.json"
+
 deduplication:
   enabled: true
   similarity_threshold: 0.85
 
+# Hugging Face Hub info
 hub_username: "AdamLucek"
-hub_token: null  # Will use HF_TOKEN env var
+hub_token: null  # or rely on HF_TOKEN environment variable
 hub_private: false
-push_to_hub: true
 
-train_embedding: true
+# Embedding training config (only used if TRAIN stage is included)
 training:
   model_id: "nomic-ai/modernbert-embed-base"
   output_dir: "./output/modernbert_mtl"
@@ -223,3 +221,4 @@ Todo List:
 
 MIT License - See [LICENSE](LICENSE)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

@@ -156,9 +156,6 @@ def save_metrics_to_file(before: Dict, after: Dict, dim_list: List[int], path="m
 
 def main(config_path: str = "config.yaml"):
     cfg = load_main_config(config_path)
-    if not cfg.get("train_embedding", False):
-        logger.info("train_embedding is False. Skipping training.")
-        return
 
     train_cfg = cfg.get("training", {})
     kb_path = cfg.get("output_path", "./output/knowledgebase.json")
