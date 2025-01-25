@@ -85,7 +85,8 @@ output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
 
 # Synthetic Dataset Generation
 question_output_path: "./output/train_data.json" # Generated Questions Output Path
-question_model: "gpt-4o-mini"
+question_model: "openai/gpt-4o-mini"
+question_embedding_model: "text-embedding-3-large"
 question_max_workers: 20
 deduplication:
   enabled: true
@@ -212,7 +213,10 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 
-- Non OpenAI model support for synthetic questions
+- LiteLLM docs in readme
+- LiteLLM base url passthrough as well
+- Cleaner handling of dedup configs (basically get rid of it cuz whys it there)
+- LiteLLM integration into chunkers
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development (and integration with overall pipeline execution)

@@ -19,7 +19,8 @@ output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
 
 # Synthetic Dataset Generation
 question_output_path: "./output/train_data.json" # Generated Questions Output Path
-question_model: "gpt-4o-mini"
+question_model: "openai/gpt-4o-mini"
+question_embedding_model: "text-embedding-3-large"
 question_max_workers: 20
 deduplication:
   enabled: true

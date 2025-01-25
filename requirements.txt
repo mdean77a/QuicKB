@@ -10,3 +10,4 @@ attrs==24.3.0
 datasets==3.2.0
 sentence_transformers==3.4.0
 transformers[torch]
+litellm==1.59.6

@@ -2,26 +2,30 @@ import json
 import uuid
 from typing import Dict, List
 import backoff
-from openai import OpenAI
-from tqdm import tqdm
+from litellm import completion, embedding
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 from .deduplicator import QuestionDeduplicator
 
 logger = logging.getLogger(__name__)
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+
 
 class QuestionGenerator:
     def __init__(
         self, 
         prompt_path: str, 
-        api_key: str = None, 
-        model: str = "gpt-4o-mini",
-        dedup_enabled: bool = True, 
+        api_key: str = None,
+        llm_model: str = "openai/gpt-4o-mini",  # Changed to use generic model name
+        embedding_model: str = "text-embedding-3-large",  # Added embedding model parameter
+        dedup_enabled: bool = True,
         similarity_threshold: float = 0.85,
-        max_workers: int = 20  # Number of parallel workers
+        max_workers: int = 20
     ):
-        self.client = OpenAI(api_key=api_key)
-        self.model = model
+        self.api_key = api_key
+        self.llm_model = llm_model
+        self.embedding_model = embedding_model
         self.prompt = self._load_prompt(prompt_path)
         self._question_cache: Dict[str, List[Dict]] = {}
         self.dedup_enabled = dedup_enabled
@@ -34,13 +38,14 @@ class QuestionGenerator:
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def _generate(self, chunk: str) -> str:
-        response = self.client.chat.completions.create(
-            model=self.model,
+        response = completion(
+            model=self.llm_model,
             messages=[
                 {"role": "system", "content": self.prompt},
                 {"role": "user", "content": f"Text: {chunk}"}
             ],
             temperature=0.7,
+            api_key=self.api_key
         )
         return response.choices[0].message.content
 
@@ -76,13 +81,11 @@ class QuestionGenerator:
 
         if uncached_chunks:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                # Submit all chunks to thread pool
                 future_to_chunk = {
                     executor.submit(self.generate_for_chunk, chunk): chunk 
                     for chunk in uncached_chunks
                 }
                 
-                # Process completed futures with progress bar
                 with tqdm(total=len(uncached_chunks), desc="Generating questions") as pbar:
                     for future in as_completed(future_to_chunk):
                         chunk = future_to_chunk[future]
@@ -94,13 +97,14 @@ class QuestionGenerator:
                         pbar.update(1)
         
         if self.dedup_enabled and self.deduplicator and results:
-            # Get embeddings for questions
+            # Get embeddings using LiteLLM
             questions_text = [q["question"] for q in results]
-            response = self.client.embeddings.create(
+            response = embedding(
+                model=self.embedding_model,
                 input=questions_text,
-                model="text-embedding-3-large"
+                api_key=self.api_key
             )
-            embeddings = [data.embedding for data in response.data]
+            embeddings = [data["embedding"] for data in response.data]
             
             # Deduplicate questions
             results = self.deduplicator.deduplicate(results, embeddings)
