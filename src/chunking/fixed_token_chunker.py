@@ -56,7 +56,7 @@ class TextSplitter(BaseChunker, ABC):
             )
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
-        # If BaseChunker sets self.length_function, we override with the user’s length_function param if given
+        # If BaseChunker sets self.length_function, we override with the user's length_function param if given
         if length_function is not None:
             self._length_function = length_function
         else:
@@ -111,41 +111,6 @@ class TextSplitter(BaseChunker, ABC):
         if doc is not None:
             docs.append(doc)
         return docs
-
-    @classmethod
-    def from_tiktoken_encoder(
-        cls: Type[TS],
-        encoding_name: str = "gpt2",
-        model_name: Optional[str] = None,
-        allowed_special: Union[Literal["all"], AbstractSet[str]] = set(),
-        disallowed_special: Union[Literal["all"], Collection[str]] = "all",
-        **kwargs: Any,
-    ) -> TS:
-        """Text splitter that uses tiktoken encoder to count length."""
-        try:
-            import tiktoken
-        except ImportError:
-            raise ImportError(
-                "Could not import tiktoken python package. "
-                "This is needed in order to calculate max_tokens_for_prompt. "
-                "Please install it with `pip install tiktoken`."
-            )
-
-        if model_name is not None:
-            enc = tiktoken.encoding_for_model(model_name)
-        else:
-            enc = tiktoken.get_encoding(encoding_name)
-
-        def _tiktoken_encoder(text: str) -> int:
-            return len(
-                enc.encode(
-                    text,
-                    allowed_special=allowed_special,
-                    disallowed_special=disallowed_special,
-                )
-            )
-
-        return cls(length_function=_tiktoken_encoder, **kwargs)
 
 @ChunkerRegistry.register("FixedTokenChunker")
 class FixedTokenChunker(TextSplitter):

@@ -4,39 +4,35 @@
 # License: MIT License
 
 from .base_chunker import BaseChunker
-from embeddings.base_embedder import EmbeddingManager
 from .recursive_token_chunker import RecursiveTokenChunker
-import anthropic
 import backoff
 from tqdm import tqdm
-from typing import List
+from typing import List, Optional
 import re
-from .registry import ChunkerRegistry 
+from .registry import ChunkerRegistry
+from litellm import completion
 
 @ChunkerRegistry.register("LLMSemanticChunker")
 class LLMSemanticChunker(BaseChunker):
-    def __init__(self, organisation: str = "openai", api_key: str = None, model_name: str = None):
-        super().__init__()
-
-        if organisation == "openai":
-            from openai import OpenAI
-            self.client = OpenAI(api_key=api_key)
-            self.model = model_name or "gpt-4o"
-            self.organisation = "openai"
-        elif organisation == "anthropic":
-            self.client = anthropic.Anthropic(api_key=api_key)
-            self.model = model_name or "claude-3-haiku-20240307"
-            self.organisation = "anthropic"
-        else:
-            raise ValueError("Invalid organisation, choose 'openai' or 'anthropic'")
-
+    def __init__(
+        self, 
+        litellm_config: Optional[dict] = None,
+        length_type: str = 'token',
+        **kwargs
+    ):
+        super().__init__(length_type=length_type, **kwargs)
+        
+        self._litellm_config = litellm_config or {}
+        
+        # Initialize the base splitter for initial text splitting
         self.splitter = RecursiveTokenChunker(
             chunk_size=50,
             chunk_overlap=0,
-            length_function=EmbeddingManager.get_token_counter()
+            length_function=self.length_function
         )
 
     def get_prompt(self, chunked_input, current_chunk=0, invalid_response=None):
+        """Generate the prompt for the LLM."""
         base_prompt = (
             "You are an expert document analyzer. Split this text into thematic sections. "
             "Chunks are marked with <|start_chunk_X|> tags. Respond with 'split_after: ' "
@@ -59,7 +55,45 @@ class LLMSemanticChunker(BaseChunker):
             {"role": "user", "content": user_content}
         ]
 
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    def _get_llm_response(self, context: str, current: int) -> str:
+        """Get chunking suggestions from LLM using LiteLLM."""
+        try:
+            response = completion(
+                model=self._litellm_config.get('model', 'openai/gpt-4o'),
+                messages=self.get_prompt(context, current),
+                temperature=0.2,
+                max_tokens=200,
+                api_base=self._litellm_config.get('model_api_base')
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"LLM API error: {str(e)}")
+            return ""
+
+    def _parse_response(self, response: str) -> List[int]:
+        """Parse the LLM response to extract split points."""
+        numbers = []
+        if 'split_after:' in response:
+            # Grab all numbers after the substring 'split_after:'
+            numbers = list(map(int, re.findall(r'\d+', response.split('split_after:')[1])))
+        return sorted(n for n in numbers if n >= 0)
+
+    def _merge_chunks(self, chunks: List[str], indices: List[int]) -> List[str]:
+        """Merge chunks based on split indices."""
+        merged = []
+        current = []
+        for i, chunk in enumerate(chunks):
+            current.append(chunk)
+            if i in indices:
+                merged.append(" ".join(current).strip())
+                current = []
+        if current:
+            merged.append(" ".join(current).strip())
+        return merged
+
     def split_text(self, text: str) -> List[str]:
+        """Split input text into coherent chunks using LLM guidance."""
         chunks = self.splitter.split_text(text)
         split_indices = []
         current_chunk = 0
@@ -70,7 +104,7 @@ class LLMSemanticChunker(BaseChunker):
                 token_count = 0
 
                 for i in range(current_chunk, len(chunks)):
-                    token_count += EmbeddingManager.get_token_counter()(chunks[i])
+                    token_count += self.length_function(chunks[i])
                     if token_count > 800:
                         break
                     context_window.append(f"<|start_chunk_{i+1}|>{chunks[i]}<|end_chunk_{i+1}|>")
@@ -86,46 +120,3 @@ class LLMSemanticChunker(BaseChunker):
                     break
 
         return self._merge_chunks(chunks, split_indices)
-
-    def _get_llm_response(self, context: str, current: int):
-        @backoff.on_exception(backoff.expo, Exception, max_tries=3)
-        def _send_request():
-            if self.organisation == "openai":
-                return self.client.chat.completions.create(
-                    model=self.model,
-                    messages=self.get_prompt(context, current),
-                    temperature=0.2,
-                    max_tokens=200
-                ).choices[0].message.content
-            else:
-                return self.client.messages.create(
-                    model=self.model,
-                    messages=self.get_prompt(context, current),
-                    max_tokens=200,
-                    temperature=0.2
-                ).content[0].text
-
-        try:
-            return _send_request()
-        except Exception as e:
-            print(f"LLM API error: {str(e)}")
-            return ""
-
-    def _parse_response(self, response: str):
-        numbers = []
-        if 'split_after:' in response:
-            # Grab all numbers after the substring 'split_after:'
-            numbers = list(map(int, re.findall(r'\d+', response.split('split_after:')[1])))
-        return sorted(n for n in numbers if n >= 0)
-
-    def _merge_chunks(self, chunks, indices):
-        merged = []
-        current = []
-        for i, chunk in enumerate(chunks):
-            current.append(chunk)
-            if i in indices:
-                merged.append(" ".join(current).strip())
-                current = []
-        if current:
-            merged.append(" ".join(current).strip())
-        return merged

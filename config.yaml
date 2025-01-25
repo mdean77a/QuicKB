@@ -12,16 +12,15 @@ hub_token: null  # or rely on HF_TOKEN environment variable
 
 # Chunking config with upload options
 chunker_config:
-  output_path: "./output/knowledgebase-quickb.json"
-
-  chunker: "RecursiveTokenChunker" 
+  output_path: "./output/recursive-chunks.json"
+  chunker: "RecursiveTokenChunker"
   chunker_arguments:
     chunk_size: 400
     chunk_overlap: 0
     separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
     keep_separator: true
     is_separator_regex: false
-    length_function: "character"
+    length_type: "character"
   
   upload_config:
     push_to_hub: true
@@ -31,10 +30,11 @@ chunker_config:
 # Question Generation with upload options
 question_generation:
   output_path: "./output/train_data.json"
-  model: "openai/gpt-4o-mini"
-  model_api_base: null
-  embedding_model: "text-embedding-3-large"
-  embedding_api_base: null
+  litellm_config:
+    model: "openai/gpt-4o-mini"
+    model_api_base: null
+    embedding_model: "text-embedding-3-large"
+    embedding_api_base: null
   max_workers: 20
   deduplication_enabled: true
   similarity_threshold: 0.85

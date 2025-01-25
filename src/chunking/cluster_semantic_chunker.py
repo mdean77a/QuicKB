@@ -6,7 +6,7 @@
 from .base_chunker import BaseChunker
 from typing import List
 import numpy as np
-from embeddings.base_embedder import EmbeddingManager
+from litellm import embedding
 from .recursive_token_chunker import RecursiveTokenChunker
 from .registry import ChunkerRegistry
 
@@ -14,16 +14,13 @@ from .registry import ChunkerRegistry
 class ClusterSemanticChunker(BaseChunker):
     def __init__(
         self,
-        embedding_function=None,
+        litellm_config=None,
         max_chunk_size=400,
         min_chunk_size=50,
-        length_function=None
+        length_type='token',
+        **kwargs
     ):
-        # We don't call super().__init__ directly with these parameters
-        # because BaseChunker is expecting some of them in kwargs.
-        # Instead, we pass them in *kwargs for BaseChunker to handle length_function if needed.
-
-        super().__init__(encoding_name="cl100k_base", length_function=length_function)
+        super().__init__(length_type=length_type, **kwargs)
 
         self.splitter = RecursiveTokenChunker(
             chunk_size=min_chunk_size,
@@ -32,21 +29,41 @@ class ClusterSemanticChunker(BaseChunker):
             separators=["\n\n", "\n", ".", "?", "!", " ", ""]
         )
 
-        if isinstance(embedding_function, str):
-            self._embedding_function = EmbeddingManager.get_embedder(embedding_function)
-        else:
-            self._embedding_function = embedding_function or EmbeddingManager.get_embedder()
-
+        self._litellm_config = litellm_config or {}
         self._chunk_size = max_chunk_size
         self.max_cluster = max_chunk_size // min_chunk_size
 
+    def _get_embeddings(self, texts):
+        """Get embeddings using LiteLLM."""
+        try:
+            response = embedding(
+                model=self._litellm_config.get('embedding_model', 'text-embedding-3-large'),
+                input=texts,
+                api_base=self._litellm_config.get('embedding_api_base')
+            )
+            # Extract embeddings from LiteLLM response
+            # Response format is typically: {'data': [{'embedding': [...], 'index': 0}, ...]}
+            if hasattr(response, 'data'):
+                # Handle response object
+                return [item['embedding'] for item in response.data]
+            elif isinstance(response, dict) and 'data' in response:
+                # Handle response dict
+                return [item['embedding'] for item in response['data']]
+            else:
+                raise ValueError(f"Unexpected response format from LiteLLM: {response}")
+        except Exception as e:
+            raise RuntimeError(f"Error getting embeddings: {str(e)}")
+
     def _get_similarity_matrix(self, sentences):
+        if not sentences:
+            return np.array([[]])
+            
         BATCH_SIZE = 500
         embedding_matrix = None
 
         for i in range(0, len(sentences), BATCH_SIZE):
             batch = sentences[i:i + BATCH_SIZE]
-            embeddings = self._embedding_function.get_embeddings(batch)
+            embeddings = self._get_embeddings(batch)
             batch_matrix = np.array(embeddings)
 
             if embedding_matrix is None:
@@ -54,12 +71,21 @@ class ClusterSemanticChunker(BaseChunker):
             else:
                 embedding_matrix = np.concatenate((embedding_matrix, batch_matrix), axis=0)
 
+        # Normalize the embeddings for cosine similarity
+        norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
+        embedding_matrix = embedding_matrix / (norms + 1e-8)  # Add small epsilon to avoid division by zero
+        
         return np.dot(embedding_matrix, embedding_matrix.T)
 
     def _calculate_reward(self, matrix, start, end):
+        if start > end or start < 0 or end >= matrix.shape[0]:
+            return 0
         return np.sum(matrix[start:end + 1, start:end + 1])
 
     def _optimal_segmentation(self, matrix, max_cluster_size):
+        if matrix.size == 0:
+            return []
+            
         # Adjust matrix by subtracting average off-diagonal
         matrix = matrix - np.mean(matrix[np.triu_indices(matrix.shape[0], k=1)])
         np.fill_diagonal(matrix, 0)
@@ -69,7 +95,7 @@ class ClusterSemanticChunker(BaseChunker):
         segmentation = np.zeros(n, dtype=int)
 
         for i in range(n):
-            for size in range(1, max_cluster_size + 1):
+            for size in range(1, min(max_cluster_size + 1, i + 2)):
                 if i - size + 1 >= 0:
                     reward = self._calculate_reward(matrix, i - size + 1, i)
                     if i - size >= 0:
@@ -88,6 +114,9 @@ class ClusterSemanticChunker(BaseChunker):
         return list(reversed(clusters))
 
     def split_text(self, text: str) -> List[str]:
+        if not text.strip():
+            return []
+            
         sentences = self.splitter.split_text(text)
         if not sentences:
             return []

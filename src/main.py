@@ -10,7 +10,6 @@ import yaml
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from chunking import ChunkerRegistry
-from embeddings.base_embedder import EmbeddingManager
 from hub_upload.dataset_pusher import DatasetPusher
 from synth_dataset.question_generator import QuestionGenerator
 from training.train import main as train_main
@@ -30,7 +29,17 @@ class BatchSamplers(str, Enum):
     NO_DUPLICATES = "no_duplicates"
     GROUP_BY_LABEL = "group_by_label"
 
+class LiteLLMConfig(BaseModel):
+    """Configuration for LiteLLM model and embedding settings."""
+    model_config = ConfigDict(extra='forbid')
+    
+    model: str = "openai/gpt-4o"
+    model_api_base: Optional[str] = None
+    embedding_model: str = "openai/text-embedding-3-large"
+    embedding_api_base: Optional[str] = None
+
 class UploadConfig(BaseModel):
+    """Configuration for Hugging Face Hub uploads."""
     model_config = ConfigDict(extra='forbid')
     
     push_to_hub: bool = False
@@ -38,7 +47,35 @@ class UploadConfig(BaseModel):
     hub_dataset_id: Optional[str] = None
     hub_model_id: Optional[str] = None
 
+class ChunkerConfig(BaseModel):
+    """Configuration for text chunking."""
+    model_config = ConfigDict(extra='forbid')
+    
+    chunker: str
+    chunker_arguments: Dict[str, Any]
+    output_path: str
+    upload_config: Optional[UploadConfig] = None
+
+    @property
+    def litellm_config(self) -> Optional[LiteLLMConfig]:
+        """Extract ModelConfig from chunker_arguments if present."""
+        if "model_config" in self.chunker_arguments:
+            return LiteLLMConfig.model_validate(self.chunker_arguments["litellm_config"])
+        return None
+
+class QuestionGeneratorConfig(BaseModel):
+    """Configuration for question generation."""
+    model_config = ConfigDict(extra='forbid')
+    
+    output_path: str
+    litellm_config: LiteLLMConfig
+    max_workers: int = 20
+    deduplication_enabled: bool = True
+    similarity_threshold: float = 0.85
+    upload_config: Optional[UploadConfig] = None
+
 class ModelSettings(BaseModel):
+    """Settings for the embedding model training."""
     model_config = ConfigDict(extra='forbid')
     
     model_id: str
@@ -46,6 +83,7 @@ class ModelSettings(BaseModel):
     metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
 
 class TrainingArguments(BaseModel):
+    """Arguments for model training."""
     model_config = ConfigDict(extra='forbid')
     
     # Required parameters
@@ -82,35 +120,15 @@ class TrainingArguments(BaseModel):
     report_to: str = "none"
 
 class TrainingConfig(BaseModel):
+    """Configuration for model training."""
     model_config = ConfigDict(extra='forbid')
     
     model_settings: ModelSettings
     training_arguments: TrainingArguments
     upload_config: Optional[UploadConfig] = None
 
-# Rest of your models remain the same...
-class ChunkerConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    
-    chunker: str
-    chunker_arguments: Dict[str, Any]
-    output_path: str
-    upload_config: Optional[UploadConfig] = None
-
-class QuestionGeneratorConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    
-    output_path: str
-    model: str
-    model_api_base: Optional[str] = None
-    embedding_model: Optional[str] = None
-    embedding_api_base: Optional[str] = None
-    max_workers: int = 20
-    deduplication_enabled: bool = True
-    similarity_threshold: float = 0.85
-    upload_config: Optional[UploadConfig] = None
-
 class PipelineConfig(BaseModel):
+    """Main configuration for the QuicKB pipeline."""
     model_config = ConfigDict(extra='forbid')
     
     pipeline: Dict[str, str]
@@ -140,22 +158,11 @@ def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineCon
 def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     """Process documents into chunks and optionally upload to Hub."""
     
-    
     # Get chunker class
     chunker_class = ChunkerRegistry.get_chunker(config.chunker_config.chunker)
     
     # Make a copy of chunker arguments
     args = config.chunker_config.chunker_arguments.copy()
-    
-    # Resolve embedder or token counter references
-    for key in ['embedding_function', 'length_function']:
-        if key in args and isinstance(args[key], str):
-            resolver = (
-                EmbeddingManager.get_embedder 
-                if 'embedding' in key 
-                else EmbeddingManager.get_token_counter
-            )
-            args[key] = resolver(args[key])
     
     # Initialize chunker
     chunker = chunker_class(**args)
@@ -240,13 +247,13 @@ def generate_questions(
     
     generator = QuestionGenerator(
         prompt_path="src/prompts/question_generation.txt",
-        llm_model=config.question_generation.model,
-        embedding_model=config.question_generation.embedding_model,
+        llm_model=config.question_generation.litellm_config.model,
+        embedding_model=config.question_generation.litellm_config.embedding_model,
         dedup_enabled=config.question_generation.deduplication_enabled,
         similarity_threshold=config.question_generation.similarity_threshold,
         max_workers=config.question_generation.max_workers,
-        model_api_base=config.question_generation.model_api_base,
-        embedding_api_base=config.question_generation.embedding_api_base,
+        model_api_base=config.question_generation.litellm_config.model_api_base,
+        embedding_api_base=config.question_generation.litellm_config.embedding_api_base,
     )
     
     # Get unique texts and build a text-to-id mapping
@@ -329,7 +336,7 @@ def generate_questions(
             
             # Collect question generation info
             question_gen_info = {
-                'model_name': config.question_generation.model,
+                'model_name': config.question_generation.litellm_config.model,
                 'similarity_threshold': config.question_generation.similarity_threshold,
                 'num_questions': metrics['num_questions_original'],
                 'num_deduped': metrics['num_questions_deduped']

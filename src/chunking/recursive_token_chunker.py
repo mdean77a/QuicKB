@@ -36,9 +36,16 @@ class RecursiveTokenChunker(TextSplitter):
         separators: Optional[List[str]] = None,
         keep_separator: bool = True,
         is_separator_regex: bool = False,
+        length_type: str = 'token',
         **kwargs: Any,
     ) -> None:
-        super().__init__(chunk_size=chunk_size, chunk_overlap=chunk_overlap, keep_separator=keep_separator, **kwargs)
+        super().__init__(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            keep_separator=keep_separator,
+            length_type=length_type,
+            **kwargs
+        )
         self._separators = separators or ["\n\n", "\n", ".", "?", "!", " ", ""]
         self._is_separator_regex = is_separator_regex
 
@@ -64,7 +71,7 @@ class RecursiveTokenChunker(TextSplitter):
         actual_separator = "" if self._keep_separator else separator
 
         for s in splits:
-            if self._length_function(s) < self._chunk_size:
+            if self.length_function(s) < self._chunk_size:
                 _good_splits.append(s)
             else:
                 if _good_splits:
@@ -87,8 +94,6 @@ class RecursiveTokenChunker(TextSplitter):
 
     @staticmethod
     def get_separators_for_language(language: Language) -> List[str]:
-        # Omitted for brevity – same as original
-        # ... (the large if-elif chain of language separators) ...
         if language == Language.PYTHON:
             return [
                 "\nclass ",
@@ -99,7 +104,6 @@ class RecursiveTokenChunker(TextSplitter):
                 " ",
                 "",
             ]
-        # etc...
         raise ValueError(
             f"Language {language} is not supported! "
             f"Please choose from {list(Language)}"

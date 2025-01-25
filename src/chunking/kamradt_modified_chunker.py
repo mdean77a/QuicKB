@@ -7,7 +7,7 @@ from typing import Optional, List, Any
 import numpy as np
 from .base_chunker import BaseChunker
 from .recursive_token_chunker import RecursiveTokenChunker
-from embeddings.base_embedder import EmbeddingManager
+from litellm import embedding
 from .registry import ChunkerRegistry 
 
 @ChunkerRegistry.register("KamradtModifiedChunker")
@@ -16,10 +16,11 @@ class KamradtModifiedChunker(BaseChunker):
         self,
         avg_chunk_size: int = 400,
         min_chunk_size: int = 50,
-        embedding_function: Optional[Any] = None,
-        length_function=None
+        litellm_config: Optional[dict] = None,
+        length_type: str = 'token',
+        **kwargs
     ):
-        super().__init__(encoding_name="cl100k_base", length_function=length_function)
+        super().__init__(length_type=length_type, **kwargs)
 
         self.splitter = RecursiveTokenChunker(
             chunk_size=min_chunk_size,
@@ -27,12 +28,22 @@ class KamradtModifiedChunker(BaseChunker):
             length_function=self.length_function
         )
 
-        if isinstance(embedding_function, str):
-            self._embedding_function = EmbeddingManager.get_embedder(embedding_function)
-        else:
-            self._embedding_function = embedding_function or EmbeddingManager.get_embedder()
-
+        self._litellm_config = litellm_config or {}
         self.avg_chunk_size = avg_chunk_size
+
+    def _get_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Get embeddings using LiteLLM."""
+        response = embedding(
+            model=self._litellm_config.get('embedding_model', 'text-embedding-3-large'),
+            input=texts,
+            api_base=self._litellm_config.get('embedding_api_base')
+        )
+        # Extract embeddings from the response data
+        if hasattr(response, 'data'):
+            return [item['embedding'] for item in response.data]
+        elif isinstance(response, dict) and 'data' in response:
+            return [item['embedding'] for item in response['data']]
+        raise ValueError(f"Unexpected response format from LiteLLM: {response}")
 
     def combine_sentences(self, sentences: List[dict], buffer_size: int = 1) -> List[dict]:
         for i in range(len(sentences)):
@@ -46,7 +57,7 @@ class KamradtModifiedChunker(BaseChunker):
         embeddings = []
         for i in range(0, len(sentences), 500):
             batch = [s['combined_sentence'] for s in sentences[i:i + 500]]
-            embeddings.extend(self._embedding_function.get_embeddings(batch))
+            embeddings.extend(self._get_embeddings(batch))
 
         embedding_matrix = np.array(embeddings)
         norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
