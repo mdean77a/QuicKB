@@ -2,40 +2,35 @@
 
 <img src="qkb_logo.png" width=175>
 
-Optimized Retrieval Knowledge Base & Embedding Model Finetuning
+Optimize Document Retrieval with Fine-tuned Knowledge Bases
 
 ## Overview
 
-QuicKB takes unstructured text documents and creates retrieval-optimized knowledge bases through a complete pipeline that handles:
-
-- Document Chunking with Multiple SOTA Strategies
-- Synthetic Question-Answer Dataset Generation
-- Embedding Model Fine-tuning For Personalized Retrieval
-- Automatic Dataset & Model Publishing to Hugging Face Hub
+QuicKB optimizes document retrieval by creating fine-tuned knowledge bases through an end-to-end pipeline that handles document chunking, training data generation, and embedding model optimization.
 
 ## Key Features
 
 ### Document Chunking
-- Multiple chunking strategies:
-  - **RecursiveTokenChunker**: Hierarchical splitting using custom separators
-  - **FixedTokenChunker**: Precise token-based chunking
-  - **LLMSemanticChunker**: LLM-guided natural break points
-  - **KamradtModifiedChunker**: Hybrid semantic-token approach
+- Token-based strategies:
+  - **RecursiveTokenChunker**: Hierarchical splitting with custom separators
+  - **FixedTokenChunker**: Precise length-based chunking
+- Semantic strategies:
+  - **LLMSemanticChunker**: Natural language break points using LLMs
   - **ClusterSemanticChunker**: Content-aware semantic grouping
+  - **KamradtModifiedChunker**: Hybrid semantic-token approach
 
-Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunking Strategies for Retrieval*](https://research.trychroma.com/evaluating-chunking)
+*Chunking techniques adapted from [ChromaDB's Chunking Research](https://research.trychroma.com/evaluating-chunking)*
 
-### RAG Training Data Generation
-- Automatic question generation from chunks
-- Private & Local Model Support via [LiteLLM](https://docs.litellm.ai/docs/)
-- Semantic deduplication of similar questions
-- Parallel processing for speed
+### Training Data Generation
+- LLM-powered question generation
+- Cloud and local model support via [LiteLLM](https://docs.litellm.ai/docs/)
+- Semantic deduplication
+- Parallel processing
 
 ### Embedding Optimization
-- Fine-tune the latest retrieval embedding models
-- Optimized for both accuracy and inference speed
-- Matryoshka embedding training (768→64D)
-- Built-in evaluation metrics and benchmarking
+- Fine-tuned retrieval models with [Sentence Transformers](https://sbert.net/)
+- Matryoshka dimension reduction (768→64D)
+- Comprehensive evaluation metrics
 
 ## Installation
 
@@ -301,9 +296,7 @@ Todo List:
 - pydantic v2 fields warning (and cleaner config args in general)
 - Transformers verions with torch handling
 - Custom Model Card (Using base from SBERT currently)
-- Update model card for dataset (link to trained model and vice versa)
 - move hub_upload stuff closer to synth_dataset
-- Refactoring the trainer for better modular development (and integration with overall pipeline execution)
 - CPU training support
 
 ## License
