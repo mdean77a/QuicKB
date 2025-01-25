@@ -293,10 +293,9 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 
-- pydantic v2 fields warning (and cleaner config args in general)
+- pydantic v2 fields warning
 - Transformers verions with torch handling
 - Custom Model Card (Using base from SBERT currently)
-- move hub_upload stuff closer to synth_dataset
 - CPU training support
 
 ## License

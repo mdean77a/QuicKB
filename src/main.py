@@ -463,42 +463,6 @@ def run_pipeline(config: PipelineConfig):
 
     logger.info("Pipeline complete!")
 
-def run_pipeline_from_stage(config: PipelineConfig, start_stage: str):
-    """Run pipeline starting from specified stage."""
-    if start_stage == PipelineStage.CHUNK:
-        run_pipeline(config)
-    elif start_stage == PipelineStage.GENERATE:
-        # Load existing chunks and continue
-        with open(config.output_path, 'r', encoding='utf-8') as f:
-            kb_dataset = json.load(f)
-        train_dataset = generate_questions(config, kb_dataset)
-        
-        if config.train_embedding:
-            train_model(config, kb_dataset, train_dataset)
-        if config.hub_username:
-            upload_to_hub(config, kb_dataset, train_dataset)
-            
-    elif start_stage == PipelineStage.TRAIN:
-        # Load existing data and train
-        with open(config.output_path, 'r', encoding='utf-8') as f:
-            kb_dataset = json.load(f)
-        with open(config.question_output_path, 'r', encoding='utf-8') as f:
-            train_dataset = json.load(f)
-            
-        train_model(config, kb_dataset, train_dataset)
-        if config.hub_username:
-            upload_to_hub(config, kb_dataset, train_dataset)
-            
-    elif start_stage == PipelineStage.UPLOAD:
-        # Just upload existing data
-        with open(config.output_path, 'r', encoding='utf-8') as f:
-            kb_dataset = json.load(f)
-        train_dataset = None
-        if config.question_output_path:
-            with open(config.question_output_path, 'r', encoding='utf-8') as f:
-                train_dataset = json.load(f)
-        upload_to_hub(config, kb_dataset, train_dataset)
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     try:

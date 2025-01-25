@@ -71,21 +71,22 @@ class LLMSemanticChunker(BaseChunker):
             print(f"LLM API error: {str(e)}")
             return ""
 
-    def _parse_response(self, response: str) -> List[int]:
-        """Parse the LLM response to extract split points."""
+    def _parse_response(self, response: str, current_chunk: int) -> List[int]:
         numbers = []
         if 'split_after:' in response:
-            # Grab all numbers after the substring 'split_after:'
             numbers = list(map(int, re.findall(r'\d+', response.split('split_after:')[1])))
-        return sorted(n for n in numbers if n >= 0)
+        return sorted(n for n in numbers if n > current_chunk)  # Ensure 1-based > current 0-based
 
     def _merge_chunks(self, chunks: List[str], indices: List[int]) -> List[str]:
-        """Merge chunks based on split indices."""
+        """Merge chunks based on split indices (indices are 1-based from LLM)"""
         merged = []
         current = []
+        # Convert to 0-based indices and sort
+        split_points = sorted([i-1 for i in indices if i > 0])
+        
         for i, chunk in enumerate(chunks):
             current.append(chunk)
-            if i in indices:
+            if i in split_points:
                 merged.append(" ".join(current).strip())
                 current = []
         if current:
@@ -110,7 +111,7 @@ class LLMSemanticChunker(BaseChunker):
                     context_window.append(f"<|start_chunk_{i+1}|>{chunks[i]}<|end_chunk_{i+1}|>")
 
                 response = self._get_llm_response("\n".join(context_window), current_chunk)
-                numbers = self._parse_response(response)
+                numbers = self._parse_response(response, current_chunk)  # FIXED: Added current_chunk argument
 
                 if numbers:
                     split_indices.extend(numbers)

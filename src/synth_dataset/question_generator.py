@@ -16,13 +16,13 @@ class QuestionGenerator:
         self, 
         prompt_path: str, 
         api_key: str = None,
-        llm_model: str = "openai/gpt-4o-mini",  # Changed to use generic model name
-        embedding_model: str = "text-embedding-3-large",  # Added embedding model parameter
+        llm_model: str = "openai/gpt-4o-mini",
+        embedding_model: str = "text-embedding-3-large",
         dedup_enabled: bool = True,
         similarity_threshold: float = 0.85,
         max_workers: int = 20,
-        model_api_base: str = None,  # API base for LLM model
-        embedding_api_base: str = None  # API base for embeddings
+        model_api_base: str = None,
+        embedding_api_base: str = None
     ):
         self.api_key = api_key
         self.llm_model = llm_model

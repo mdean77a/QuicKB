@@ -1,7 +1,7 @@
 # Pipeline Stage Control
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN
-  to_stage: "TRAIN"
+  to_stage: "CHUNK"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -11,19 +11,31 @@ hub_username: "AdamLucek"
 hub_token: null  # or rely on HF_TOKEN environment variable
 
 # Chunking config with upload options
+# chunker_config:
+#   output_path: "./output/knowledgebase-quickb.json"
+#   chunker: "RecursiveTokenChunker"
+#   chunker_arguments:
+#     chunk_size: 400
+#     chunk_overlap: 0
+#     separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
+#     keep_separator: true
+#     is_separator_regex: false
+#     length_type: "character"
+
 chunker_config:
-  output_path: "./output/knowledgebase-quickb.json"
-  chunker: "RecursiveTokenChunker"
+  output_path: "./output/cluster_chunks.json"
+  chunker: "ClusterSemanticChunker"
   chunker_arguments:
-    chunk_size: 400
-    chunk_overlap: 0
-    separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
-    keep_separator: true
-    is_separator_regex: false
-    length_type: "character"
-  
+    max_chunk_size: 400    # Maximum allowed chunk size
+    min_chunk_size: 50     # Minimum chunk size for initial splits
+    length_type: "token"   # or "character"
+    litellm_config:
+      # Cloud configuration (OpenAI):
+      embedding_model: "text-embedding-3-large"
+
+
   upload_config:
-    push_to_hub: true
+    push_to_hub: false
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb"
 
@@ -52,7 +64,7 @@ training:
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
   
   training_arguments:
-    output_path: "./output/modernbert_mtl"
+    output_path: "./output/modernbert_quickb"
     epochs: 4
     learning_rate: 2.0e-5
     batch_size: 32

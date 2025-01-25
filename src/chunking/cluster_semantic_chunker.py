@@ -4,23 +4,33 @@
 # License: MIT License
 
 from .base_chunker import BaseChunker
-from typing import List
+from typing import List, Optional
 import numpy as np
 from litellm import embedding
 from .recursive_token_chunker import RecursiveTokenChunker
 from .registry import ChunkerRegistry
+from .utils import get_length_function
+import logging
+
+logger = logging.getLogger(__name__)
 
 @ChunkerRegistry.register("ClusterSemanticChunker")
 class ClusterSemanticChunker(BaseChunker):
     def __init__(
         self,
-        litellm_config=None,
-        max_chunk_size=400,
-        min_chunk_size=50,
-        length_type='token',
+        max_chunk_size: int = 400,
+        min_chunk_size: int = 50,
+        length_type: str = 'token',
+        litellm_config: Optional[dict] = None,
         **kwargs
     ):
         super().__init__(length_type=length_type, **kwargs)
+        
+        self.length_function = get_length_function(
+            length_type=length_type,
+            encoding_name=kwargs.get('encoding_name', 'cl100k_base'),
+            model_name=kwargs.get('model_name')
+        )
 
         self.splitter = RecursiveTokenChunker(
             chunk_size=min_chunk_size,
@@ -30,79 +40,78 @@ class ClusterSemanticChunker(BaseChunker):
         )
 
         self._litellm_config = litellm_config or {}
-        self._chunk_size = max_chunk_size
         self.max_cluster = max_chunk_size // min_chunk_size
 
-    def _get_embeddings(self, texts):
-        """Get embeddings using LiteLLM."""
+    def _get_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Universal embedding response handler"""
         try:
             response = embedding(
                 model=self._litellm_config.get('embedding_model', 'text-embedding-3-large'),
                 input=texts,
                 api_base=self._litellm_config.get('embedding_api_base')
             )
-            # Extract embeddings from LiteLLM response
-            # Response format is typically: {'data': [{'embedding': [...], 'index': 0}, ...]}
-            if hasattr(response, 'data'):
-                # Handle response object
-                return [item['embedding'] for item in response.data]
-            elif isinstance(response, dict) and 'data' in response:
-                # Handle response dict
-                return [item['embedding'] for item in response['data']]
-            else:
-                raise ValueError(f"Unexpected response format from LiteLLM: {response}")
-        except Exception as e:
-            raise RuntimeError(f"Error getting embeddings: {str(e)}")
-
-    def _get_similarity_matrix(self, sentences):
-        if not sentences:
-            return np.array([[]])
             
-        BATCH_SIZE = 500
-        embedding_matrix = None
-
-        for i in range(0, len(sentences), BATCH_SIZE):
-            batch = sentences[i:i + BATCH_SIZE]
-            embeddings = self._get_embeddings(batch)
-            batch_matrix = np.array(embeddings)
-
-            if embedding_matrix is None:
-                embedding_matrix = batch_matrix
+            # Handle all possible response formats
+            if isinstance(response, dict):
+                items = response.get('data', [])
+            elif hasattr(response, 'data'):
+                items = response.data
             else:
-                embedding_matrix = np.concatenate((embedding_matrix, batch_matrix), axis=0)
+                items = response
+                
+            return [
+                item['embedding'] if isinstance(item, dict) else item.embedding
+                for item in items
+            ]
+            
+        except Exception as e:
+            logger.error(f"Embedding failed for batch: {str(e)}")
+            raise RuntimeError(f"Embedding error: {str(e)}")
 
-        # Normalize the embeddings for cosine similarity
-        norms = np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
-        embedding_matrix = embedding_matrix / (norms + 1e-8)  # Add small epsilon to avoid division by zero
-        
+    def _calculate_similarity_matrix(self, sentences: List[str]) -> np.ndarray:
+        """Batch processing with error logging"""
+        if not sentences:
+            return np.zeros((0, 0))
+            
+        embeddings = []
+        for batch_idx in range(0, len(sentences), 500):
+            try:
+                batch = sentences[batch_idx:batch_idx+500]
+                embeddings.extend(self._get_embeddings(batch))
+            except Exception as e:
+                logger.error(f"Failed processing batch {batch_idx//500}: {str(e)}")
+                raise
+                
+        embedding_matrix = np.array(embeddings)
         return np.dot(embedding_matrix, embedding_matrix.T)
 
-    def _calculate_reward(self, matrix, start, end):
-        if start > end or start < 0 or end >= matrix.shape[0]:
-            return 0
-        return np.sum(matrix[start:end + 1, start:end + 1])
-
-    def _optimal_segmentation(self, matrix, max_cluster_size):
-        if matrix.size == 0:
+    def _optimal_segmentation(self, matrix: np.ndarray) -> List[tuple]:
+        """Original Chroma algorithm implementation"""
+        n = matrix.shape[0]
+        if n < 1:
             return []
-            
-        # Adjust matrix by subtracting average off-diagonal
-        matrix = matrix - np.mean(matrix[np.triu_indices(matrix.shape[0], k=1)])
+
+        # Calculate mean of off-diagonal elements
+        triu = np.triu_indices(n, k=1)
+        tril = np.tril_indices(n, k=-1)
+        mean_value = (matrix[triu].sum() + matrix[tril].sum()) / (n * (n - 1)) if n > 1 else 0
+        
+        matrix = matrix - mean_value
         np.fill_diagonal(matrix, 0)
 
-        n = matrix.shape[0]
         dp = np.zeros(n)
         segmentation = np.zeros(n, dtype=int)
 
         for i in range(n):
-            for size in range(1, min(max_cluster_size + 1, i + 2)):
-                if i - size + 1 >= 0:
-                    reward = self._calculate_reward(matrix, i - size + 1, i)
-                    if i - size >= 0:
-                        reward += dp[i - size]
-                    if reward > dp[i]:
-                        dp[i] = reward
-                        segmentation[i] = i - size + 1
+            for size in range(1, min(self.max_cluster + 1, i + 2)):
+                start_idx = i - size + 1
+                if start_idx >= 0:
+                    current_reward = matrix[start_idx:i+1, start_idx:i+1].sum()
+                    if start_idx > 0:
+                        current_reward += dp[start_idx - 1]
+                    if current_reward > dp[i]:
+                        dp[i] = current_reward
+                        segmentation[i] = start_idx
 
         clusters = []
         i = n - 1
@@ -114,13 +123,17 @@ class ClusterSemanticChunker(BaseChunker):
         return list(reversed(clusters))
 
     def split_text(self, text: str) -> List[str]:
+        """Main processing pipeline"""
         if not text.strip():
             return []
-            
-        sentences = self.splitter.split_text(text)
-        if not sentences:
-            return []
 
-        similarity_matrix = self._get_similarity_matrix(sentences)
-        clusters = self._optimal_segmentation(similarity_matrix, self.max_cluster)
-        return [' '.join(sentences[start:end + 1]) for start, end in clusters]
+        # First-stage splitting
+        sentences = self.splitter.split_text(text)
+        if len(sentences) < 2:
+            return [text]
+
+        # Semantic clustering
+        similarity_matrix = self._calculate_similarity_matrix(sentences)
+        clusters = self._optimal_segmentation(similarity_matrix)
+        
+        return [' '.join(sentences[start:end+1]) for start, end in clusters]
