@@ -279,7 +279,9 @@ def main(config_path: str = "config.yaml"):
             logger.warning("No HF_TOKEN in env, attempting login anyway.")
         hub_repo_id = train_cfg.get("hub_model_id", "YourUserName/modernbert-embed-ft")
         logger.info(f"Pushing model to HF Hub: {hub_repo_id}")
-        trainer.model.push_to_hub(hub_repo_id)
+        
+        trainer.model.push_to_hub(hub_repo_id, exist_ok=True)
+        
         logger.info("Upload complete!")
 
     logger.info("Training pipeline finished.")
