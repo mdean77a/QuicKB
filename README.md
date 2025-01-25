@@ -8,9 +8,10 @@ Optimized Retrieval Knowledge Base & Embedding Model Finetuning
 
 QuicKB takes unstructured text documents and creates retrieval-optimized knowledge bases through a complete pipeline that handles:
 
-- Document Chunking
-- Synthetic QnA Training Dataset Generation
-- Embedding Model Fine Tuning for Retrieval
+- Document Chunking with Multiple SOTA Strategies
+- Synthetic Question-Answer Dataset Generation
+- Embedding Model Fine-tuning For Personalized Retrieval
+- Automatic Dataset & Model Publishing to Hugging Face Hub
 
 ## Key Features
 
@@ -24,14 +25,14 @@ QuicKB takes unstructured text documents and creates retrieval-optimized knowled
 
 Chunking Implementation & Techniques Modified From [*ChromaDB: Evaluating Chunking Strategies for Retrieval*](https://research.trychroma.com/evaluating-chunking)
 
-### Training Data Generation
+### RAG Training Data Generation
 - Automatic question generation from chunks
 - Semantic deduplication of similar questions
 - Configurable similarity thresholds
 - Parallel processing for speed
 
 ### Embedding Optimization
-- Fine-tune state-of-the-art embedding models
+- Fine-tune the latest retrieval embedding models
 - Optimized for both accuracy and inference speed
 - Matryoshka embedding training (768→64D)
 - Built-in evaluation metrics and benchmarking
@@ -50,8 +51,8 @@ pip install -e .
 
 ## Usage
 
-1. Convert your unstructured data into text files.
-2. Configure your pipeline in `config.yaml`
+1. Prepare your text documents in a directory
+2. Configure the pipeline in `config.yaml`
 3. Run:
 ```bash
 python src/main.py
@@ -63,9 +64,6 @@ python src/main.py
 The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example with all available options:
 
 ```yaml
-# =====================================================
-# Full Pipeline Configuration
-# =====================================================
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
   to_stage: "UPLOAD"
