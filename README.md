@@ -61,7 +61,7 @@ python src/main.py
 
 ## Configuration Guide
 
-The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example with all available options:
+The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example:
 
 ```yaml
 # Pipeline Stage Control
@@ -79,28 +79,28 @@ hub_token: null  # or rely on HF_TOKEN environment variable
 # Chunking config with upload options
 chunker_config:
   output_path: "./output/knowledgebase-quickb.json"
-
-  chunker: "RecursiveTokenChunker" 
+  chunker: "RecursiveTokenChunker"
   chunker_arguments:
     chunk_size: 400
     chunk_overlap: 0
     separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
     keep_separator: true
     is_separator_regex: false
-    length_function: "character"
+    length_type: "character"
   
   upload_config:
     push_to_hub: true
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb"
 
-# Question Generation with upload options
+# Question Generation
 question_generation:
   output_path: "./output/train_data.json"
-  model: "openai/gpt-4o-mini"
-  model_api_base: null
-  embedding_model: "text-embedding-3-large"
-  embedding_api_base: null
+  litellm_config:
+    model: "openai/gpt-4o-mini"
+    model_api_base: null
+    embedding_model: "text-embedding-3-large"
+    embedding_api_base: null
   max_workers: 20
   deduplication_enabled: true
   similarity_threshold: 0.85
@@ -123,6 +123,18 @@ training:
     learning_rate: 2.0e-5
     batch_size: 32
     gradient_accumulation_steps: 16
+    warmup_ratio: 0.1
+    lr_scheduler_type: "cosine"
+    optim: "adamw_torch_fused"
+    tf32: true
+    bf16: true
+    batch_sampler: "no_duplicates"
+    eval_strategy: "epoch"
+    save_strategy: "epoch"
+    logging_steps: 10
+    save_total_limit: 3
+    load_best_model_at_end: true
+    report_to: "none"
     
   upload_config:
     push_to_hub: true
@@ -140,23 +152,31 @@ chunker_arguments:
   model_name: "text-embedding-3-large"
   chunk_size: 400
   chunk_overlap: 50
+  length_type: "token"
 ```
 
 2. **Cluster Semantic Chunker**
 ```yaml
 chunker: "ClusterSemanticChunker"
 chunker_arguments:
-  embedding_function: "openai"
   max_chunk_size: 400
   min_chunk_size: 50
+  length_type: "token"
+  litellm_config:
+    model: "openai/gpt-4o"
+    model_api_base: null
+    embedding_model: "text-embedding-3-large"
+    embedding_api_base: null
 ```
 
 3. **LLM Semantic Chunker**
 ```yaml
 chunker: "LLMSemanticChunker"
 chunker_arguments:
-  organisation: "openai"  # or "anthropic"
-  model_name: "gpt-4o"
+  length_type: "token"
+  litellm_config:
+    model: "openai/gpt-4o"
+    model_api_base: null
 ```
 
 4. **Kamradt Modified Chunker**
@@ -165,30 +185,57 @@ chunker: "KamradtModifiedChunker"
 chunker_arguments:
   avg_chunk_size: 400
   min_chunk_size: 50
-  embedding_function: "openai"
+  length_type: "token"
+  litellm_config:
+    model: "openai/gpt-4o"
+    model_api_base: null
+    embedding_model: "text-embedding-3-large"
+    embedding_api_base: null
 ```
 
 ### LiteLLM Integration
 
-QuicKB uses [LiteLLM](https://docs.litellm.ai/docs/) for flexible [model provider integration](https://docs.litellm.ai/docs/providers), allowing you to use any supported LLM or embedding provider for question generation and chunking. This enables both cloud-based and local model deployment.
+QuicKB uses [LiteLLM](https://docs.litellm.ai/docs/) for flexible model provider integration, allowing you to use any supported LLM or embedding provider for question generation and semantic chunking. This enables both cloud-based and local model deployment.
 
-**To use local models**:
+The LiteLLM configuration is managed through the `litellm_config` section in both the chunking and question generation configurations:
 
-1. Set up an OpenAI API compatible endpoint (i.e. Ollama)
+```yaml
+litellm_config:
+  model: "openai/gpt-4o"                     # LLM model identifier
+  model_api_base: null                       # Optional API base URL for LLM
+  embedding_model: "text-embedding-3-large"  # Embedding model identifier
+  embedding_api_base: null                   # Optional API base URL for embeddings
+```
+
+**Using Local Models**:
+
+1. Set up an OpenAI API compatible endpoint (e.g., Ollama, vLLM)
 2. Configure the `model_api_base` or `embedding_api_base` in your config
 3. Use the appropriate model identifier format
 
 Example local setup:
 
 ```yaml
+# For question generation
 question_generation:
-  model: "local/llama-7b"
-  model_api_base: "http://localhost:8000"
-  embedding_model: "local/bge-small"
-  embedding_api_base: "http://localhost:8000"
+  litellm_config:
+    model: "local/llama-7b"
+    model_api_base: "http://localhost:8000"
+    embedding_model: "local/bge-small"
+    embedding_api_base: "http://localhost:8000"
+
+# For semantic chunkers
+chunker_config:
+  chunker: "ClusterSemanticChunker"  # or other semantic chunkers
+  chunker_arguments:
+    litellm_config:
+      model: "local/llama-7b"
+      model_api_base: "http://localhost:8000"
+      embedding_model: "local/bge-small"
+      embedding_api_base: "http://localhost:8000"
 ```
 
-For more details on setting up local and provider models, refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers).
+For more details on setting up local models and supported providers, refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers).
 
 ## Output Format
 
@@ -252,10 +299,10 @@ Contributions welcome! Please feel free to submit a Pull Request.
 Todo List:
 
 - pydantic v2 fields warning (and cleaner config args in general)
-- LiteLLM integration into chunkers
 - Transformers verions with torch handling
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
+- move hub_upload stuff closer to synth_dataset
 - Refactoring the trainer for better modular development (and integration with overall pipeline execution)
 - CPU training support
 
