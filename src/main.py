@@ -1,17 +1,19 @@
-from typing import List, Dict, Optional, Any
 import logging
-import yaml
-from pathlib import Path
-from pydantic import BaseModel, ConfigDict, field_validator
 import os
 import json
 import uuid
 from enum import Enum, auto
+from pathlib import Path
+from typing import List, Dict, Optional, Any
+
+import yaml
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from chunking import ChunkerRegistry
 from embeddings.base_embedder import EmbeddingManager
-from synth_dataset.question_generator import QuestionGenerator
 from hub_upload.dataset_pusher import DatasetPusher
+from synth_dataset.question_generator import QuestionGenerator
+from training.train import main as train_main
 
 logger = logging.getLogger(__name__)
 logging.getLogger("openai").setLevel(logging.WARNING)
@@ -106,8 +108,6 @@ def validate_chunker_type(cls, v, info):
 
 def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
     """Load and validate pipeline configuration."""
-    import yaml
-    from pathlib import Path
     
     config_path = Path(config_path)
     if not config_path.exists():
@@ -124,7 +124,7 @@ def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineCon
 
 def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     """Process documents into chunks and optionally upload to Hub."""
-    from chunking import ChunkerRegistry
+    
     
     # Get chunker class
     chunker_class = ChunkerRegistry.get_chunker(config.chunker_config.chunker)
@@ -135,7 +135,6 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     # Resolve embedder or token counter references
     for key in ['embedding_function', 'length_function']:
         if key in args and isinstance(args[key], str):
-            from embeddings.base_embedder import EmbeddingManager
             resolver = (
                 EmbeddingManager.get_embedder 
                 if 'embedding' in key 
@@ -181,7 +180,6 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
         config.chunker_config.upload_config and 
         config.chunker_config.upload_config.push_to_hub):
         try:
-            from hub_upload.dataset_pusher import DatasetPusher
             
             # Initialize pusher
             pusher = DatasetPusher(
@@ -216,10 +214,6 @@ def generate_questions(
     kb_dataset: List[Dict[str, Any]]
 ) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
     """Generate questions and optionally upload to Hub."""
-    from synth_dataset.question_generator import QuestionGenerator
-    import logging
-    
-    logger = logging.getLogger(__name__)
     
     if not config.question_generation:
         raise ValueError("Question generation config is required but not provided")
@@ -299,9 +293,7 @@ def generate_questions(
     if (config.hub_username and 
         config.question_generation.upload_config and 
         config.question_generation.upload_config.push_to_hub):
-        try:
-            from hub_upload.dataset_pusher import DatasetPusher
-            
+        try:            
             # Initialize pusher
             pusher = DatasetPusher(
                 username=config.hub_username,
@@ -342,7 +334,6 @@ def generate_questions(
 
 def train_model(config: PipelineConfig, kb_dataset: List[Dict[str, Any]], train_dataset: List[Dict[str, Any]]):
     """Train the embedding model."""
-    from training.train import main as train_main
     train_main(config)
 
 def upload_to_hub(
@@ -352,7 +343,6 @@ def upload_to_hub(
     question_metrics: Optional[Dict[str, int]] = None
 ):
     """Upload datasets to Hugging Face Hub."""
-    from hub_upload.dataset_pusher import DatasetPusher
     
     if not config.hub_username:
         logger.warning("No 'hub_username' specified, skipping upload.")
