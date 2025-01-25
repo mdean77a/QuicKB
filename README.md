@@ -206,9 +206,8 @@ For more details on setting up local and provider models, refer to the [LiteLLM 
 
 ## Environment Variables
 
-- `OPENAI_API_KEY`: Required for OpenAI embeddings and question generation
+- `<PROVIDER>_API_KEY`: Required for LLM embeddings, question generation, and chunking
 - `HF_TOKEN`: Required for Hugging Face Hub uploads
-- `ANTHROPIC_API_KEY`: Optional, required only for Anthropic LLM chunking
 
 ## Citations
 
