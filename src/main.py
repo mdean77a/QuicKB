@@ -25,13 +25,18 @@ class PipelineStage(Enum):
     GENERATE = auto()
     TRAIN = auto()
 
+class BatchSamplers(str, Enum):
+    BATCH_SAMPLER = "batch_sampler"
+    NO_DUPLICATES = "no_duplicates"
+    GROUP_BY_LABEL = "group_by_label"
+
 class UploadConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
     
     push_to_hub: bool = False
     hub_private: bool = False
     hub_dataset_id: Optional[str] = None
-    hub_model_id: Optional[str] = None  # Added for model uploads
+    hub_model_id: Optional[str] = None
 
 class ModelSettings(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -43,11 +48,38 @@ class ModelSettings(BaseModel):
 class TrainingArguments(BaseModel):
     model_config = ConfigDict(extra='forbid')
     
+    # Required parameters
     output_path: str
+    
+    # Basic training parameters
     epochs: int = 4
-    learning_rate: float = 2.0e-5
     batch_size: int = 32
     gradient_accumulation_steps: int = 16
+    learning_rate: float = 2.0e-5
+    
+    # Learning rate scheduler settings
+    warmup_ratio: float = 0.1
+    lr_scheduler_type: str = "cosine"
+    
+    # Optimizer settings
+    optim: str = "adamw_torch_fused"
+    
+    # Hardware optimization flags
+    tf32: bool = True
+    bf16: bool = True
+    
+    # Batch sampling strategy
+    batch_sampler: BatchSamplers = BatchSamplers.NO_DUPLICATES
+    
+    # Training and evaluation strategy
+    eval_strategy: str = "epoch"
+    save_strategy: str = "epoch"
+    logging_steps: int = 10
+    save_total_limit: int = 3
+    load_best_model_at_end: bool = True
+    
+    # Reporting
+    report_to: str = "none"
 
 class TrainingConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -56,6 +88,7 @@ class TrainingConfig(BaseModel):
     training_arguments: TrainingArguments
     upload_config: Optional[UploadConfig] = None
 
+# Rest of your models remain the same...
 class ChunkerConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
     

@@ -1,6 +1,6 @@
 # Pipeline Stage Control
 pipeline:
-  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN
+  from_stage: "TRAIN"    # Options: CHUNK, GENERATE, TRAIN
   to_stage: "TRAIN"
 
 # Path to Knowledgebase Directory

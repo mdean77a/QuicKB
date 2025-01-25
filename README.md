@@ -78,6 +78,8 @@ hub_token: null  # or rely on HF_TOKEN environment variable
 
 # Chunking config with upload options
 chunker_config:
+  output_path: "./output/knowledgebase-quickb.json"
+
   chunker: "RecursiveTokenChunker" 
   chunker_arguments:
     chunk_size: 400
@@ -86,7 +88,7 @@ chunker_config:
     keep_separator: true
     is_separator_regex: false
     length_function: "character"
-  output_path: "./output/knowledgebase-quickb.json"
+  
   upload_config:
     push_to_hub: true
     hub_private: false
@@ -102,6 +104,7 @@ question_generation:
   max_workers: 20
   deduplication_enabled: true
   similarity_threshold: 0.85
+
   upload_config:
     push_to_hub: true
     hub_private: false
@@ -109,17 +112,22 @@ question_generation:
 
 # Training config
 training:
-  model_id: "nomic-ai/modernbert-embed-base"
-  output_path: "./output/modernbert_mtl"
-  epochs: 4
-  learning_rate: 2.0e-5
-  matryoshka_dimensions: [768, 512, 256, 128, 64]
-  batch_size: 32
-  gradient_accumulation_steps: 16
-  metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
-  push_to_hub: true
-  hub_private: false
-  hub_model_id: "AdamLucek/modernbert-embed-quickb"
+  model_settings:
+    model_id: "nomic-ai/modernbert-embed-base"
+    matryoshka_dimensions: [768, 512, 256, 128, 64]
+    metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
+  
+  training_arguments:
+    output_path: "./output/modernbert_mtl"
+    epochs: 4
+    learning_rate: 2.0e-5
+    batch_size: 32
+    gradient_accumulation_steps: 16
+    
+  upload_config:
+    push_to_hub: true
+    hub_private: false
+    hub_model_id: "AdamLucek/modernbert-embed-quickb"
 ```
 
 ### Alternative Chunker Configurations
