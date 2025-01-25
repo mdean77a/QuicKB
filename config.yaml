@@ -41,7 +41,7 @@ question_generation:
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb"
 
-# Training config remains unchanged
+# Training config
 training:
   model_id: "nomic-ai/modernbert-embed-base"
   output_dir: "./output/modernbert_mtl"
