@@ -57,10 +57,30 @@ class PipelineConfig(BaseModel):
     hub_username: Optional[str] = None
     hub_token: Optional[str] = None
     hub_private: bool = True
-
+    push_to_hub: bool = False
+    
     # Training settings
     train_embedding: bool = False
     training: Optional[TrainingConfig] = None
+
+    # Field to indicate using existing chunks
+    use_existing_chunks: bool = False
+    
+    @field_validator('output_path')
+    @classmethod
+    def validate_chunks(cls, v, info):
+        if info.data.get('use_existing_chunks', False):
+            if not os.path.exists(v):
+                raise ValueError(f"Specified existing chunks file {v} does not exist")
+            # Verify it's valid JSON with expected structure
+            try:
+                with open(v, 'r') as f:
+                    chunks = json.load(f)
+                if not isinstance(chunks, list) or not all('text' in c for c in chunks):
+                    raise ValueError("Existing chunks file has invalid format")
+            except json.JSONDecodeError:
+                raise ValueError("Existing chunks file is not valid JSON")
+        return v
 
 @field_validator('training')
 @classmethod
@@ -68,13 +88,60 @@ def validate_training_config(cls, v, info):
     if info.data.get('train_embedding', False):
         if v is None:
             raise ValueError("Training configuration required when train_embedding is True")
+        # Check if required files exist
+        if not os.path.exists(info.data.get('output_path', '')):
+            raise ValueError("Existing knowledgebase required for training")
+        if not os.path.exists(info.data.get('question_output_path', '')):
+            raise ValueError("Existing training data required for training")
     return v
 
 @field_validator('question_output_path')
 @classmethod
 def validate_question_path(cls, v, info):
-    if info.data.get('generate_questions', False) and not v:
-        raise ValueError("question_output_path required when generate_questions is True")
+    if info.data.get('generate_questions', False):
+        if not v:
+            raise ValueError("question_output_path required when generate_questions is True")
+        # If we're only generating questions, check if input chunks exist
+        if os.path.exists(info.data.get('output_path', '')):
+            # Verify it's valid JSON with expected structure
+            try:
+                with open(info.data.get('output_path'), 'r') as f:
+                    chunks = json.load(f)
+                if not isinstance(chunks, list) or not all('text' in c for c in chunks):
+                    raise ValueError("Existing knowledgebase has invalid format")
+            except json.JSONDecodeError:
+                raise ValueError("Existing knowledgebase is not valid JSON")
+    return v
+
+@field_validator('hub_username')
+@classmethod
+def validate_hub_upload(cls, v, info):
+    if v:
+        # Check if we have required files for upload
+        if not os.path.exists(info.data.get('output_path', '')):
+            raise ValueError("Knowledgebase file required for Hub upload")
+        if info.data.get('generate_questions') and not os.path.exists(info.data.get('question_output_path', '')):
+            raise ValueError("Training data file required for Hub upload when generate_questions is True")
+    return v
+
+@field_validator('path_to_knowledgebase')
+@classmethod
+def validate_input_path(cls, v, info):
+    # Only check if we're doing chunking (no existing chunks)
+    if not os.path.exists(info.data.get('output_path', '')):
+        if not os.path.exists(v):
+            raise ValueError(f"Input directory {v} does not exist")
+        if not any(Path(v).rglob('*.txt')):
+            raise ValueError(f"No .txt files found in {v}")
+    return v
+
+@field_validator('chunker')
+@classmethod
+def validate_chunker_type(cls, v, info):
+    # Only validate if we're doing chunking (no existing chunks)
+    if not os.path.exists(info.data.get('output_path', '')):
+        if v not in ChunkerRegistry._chunkers:
+            raise ValueError(f"Unknown chunker: {v}")
     return v
 
 def load_pipeline_config(config_path: str = "config.yaml") -> PipelineConfig:
@@ -143,10 +210,11 @@ def generate_questions(
     config: PipelineConfig, 
     kb_dataset: List[Dict[str, Any]]
 ) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
-    """Generate synthetic questions from chunks."""
     from synth_dataset.question_generator import QuestionGenerator
+    import logging
     
-    # Create question generator
+    logger = logging.getLogger(__name__)
+    
     generator = QuestionGenerator(
         prompt_path="src/prompts/question_generation.txt",
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -154,38 +222,65 @@ def generate_questions(
         similarity_threshold=config.deduplication.similarity_threshold
     )
     
-    # Get unique texts
-    unique_texts = list({item["text"] for item in kb_dataset})
+    # Get unique texts and build a text-to-id mapping
+    text_to_chunk_map = {}
+    for item in kb_dataset:
+        text_val = item["text"]
+        if text_val not in text_to_chunk_map:
+            text_to_chunk_map[text_val] = []
+        text_to_chunk_map[text_val].append(item["id"])
+    
+    unique_texts = list(text_to_chunk_map.keys())
+    logger.info(f"Found {len(unique_texts)} unique chunks")
     
     # Generate questions
     questions = generator.generate_for_chunks(unique_texts)
+    logger.info(f"Generated {len(questions)} questions after deduplication")
     
     # Track metrics
     metrics = {
         "num_questions_original": sum(len(generator._question_cache[chunk]) for chunk in generator._question_cache),
         "num_questions_deduped": len(questions)
     }
+    logger.info(f"Question generation metrics: {metrics}")
     
-    # Create training records
+    # Create training records with better error handling
     train_records = []
+    skipped_questions = 0
     for q in questions:
-        train_records.append({
-            "anchor": q["question"],
-            "positive": q["chunk_text"],
-            "question_id": q["id"],
-            "chunk_id": next(
-                item["id"] for item in kb_dataset 
-                if item["text"] == q["chunk_text"]
-            )
-        })
+        chunk_text = q.get("chunk_text")
+        if not chunk_text:
+            skipped_questions += 1
+            continue
+            
+        chunk_ids = text_to_chunk_map.get(chunk_text, [])
+        if not chunk_ids:
+            skipped_questions += 1
+            logger.warning(f"Could not find chunk_id for question: {q['question'][:100]}...")
+            continue
+            
+        # Create a record for each matching chunk
+        for chunk_id in chunk_ids:
+            train_records.append({
+                "anchor": q["question"],
+                "positive": chunk_text,
+                "question_id": q["id"],
+                "chunk_id": chunk_id
+            })
     
-    # Save results
+    logger.info(f"Created {len(train_records)} training records (skipped {skipped_questions} questions)")
+    
+    # Save results with error handling
     if config.question_output_path:
         output_path = Path(config.question_output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(train_records, f, indent=2, ensure_ascii=False)
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(train_records, f, indent=2, ensure_ascii=False)
+            logger.info(f"Saved training records to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to save training records: {str(e)}")
     
     return train_records, metrics
 
@@ -259,35 +354,44 @@ def validate_pipeline_config(config: PipelineConfig):
     if config.generate_questions and not config.question_output_path:
         raise ValueError("Question generation enabled but no output path specified")
 
+
 def run_pipeline(config: PipelineConfig):
-    """Run the QuicKB pipeline with validated configuration."""
-    logger.info("Starting QuicKB pipeline...")
-    
     try:
-        # Step 1: Chunking (Always required)
-        logger.info("Starting document chunking...")
-        kb_dataset = process_chunks(config)
-        logger.info(f"Created {len(kb_dataset)} chunks")
-        
-        # Step 2: Question Generation (Optional)
+        # Step 1: Chunking or Load Existing Chunks
+        if config.use_existing_chunks:
+            logger.info("Loading existing chunks...")
+            with open(config.output_path, 'r', encoding='utf-8') as f:
+                kb_dataset = json.load(f)
+            logger.info(f"Loaded {len(kb_dataset)} existing chunks")
+        else:
+            logger.info("Starting document chunking...")
+            kb_dataset = process_chunks(config)
+            logger.info(f"Created {len(kb_dataset)} chunks")
+            # Push chunks if enabled
+            if config.push_to_hub and config.hub_username:
+                logger.info("Uploading chunks to Hub...")
+                upload_to_hub(config, kb_dataset, None)
+
+        # Step 2: Question Generation
         train_dataset = None
-        question_metrics = None
+        metrics = None
         if config.generate_questions:
             logger.info("Generating synthetic questions...")
-            train_dataset, question_metrics = generate_questions(config, kb_dataset)
-            logger.info(f"Generated {len(train_dataset)} training examples")
-        
-        # Step 3: Embedding Training (Optional)
+            train_dataset, metrics = generate_questions(config, kb_dataset)
+            logger.info(f"Generated {metrics['num_questions_deduped']} questions total")
+            logger.info(f"Created {len(train_dataset)} training records")
+            # Push updated dataset if enabled
+            if config.push_to_hub and config.hub_username:
+                logger.info("Uploading chunks and questions to Hub...")
+                upload_to_hub(config, kb_dataset, train_dataset)
+
+        # Step 3: Training
         if config.train_embedding:
             if train_dataset is None:
                 raise RuntimeError("Training enabled but no training data available")
             logger.info("Training embedding model...")
             train_model(config, kb_dataset, train_dataset)
-            
-        # Optional: Upload to Hub
-        if config.hub_username:
-            logger.info("Uploading to Hugging Face Hub...")
-            upload_to_hub(config, kb_dataset, train_dataset, question_metrics)
+            # Note: Training has its own push_to_hub in its config
             
         logger.info("Pipeline complete!")
         

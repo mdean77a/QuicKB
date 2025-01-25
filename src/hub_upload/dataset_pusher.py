@@ -83,38 +83,26 @@ class DatasetPusher:
         train_path: Optional[str] = None,
         question_gen_info: Optional[Dict[str, Any]] = None,
         private: bool = True
-    ) -> None:
-        """
-        Push dataset to the Hugging Face Hub.
-        
-        Args:
-            repository_name: Name for the repository
-            knowledgebase_path: Path to knowledgebase JSON file
-            chunker_info: Dictionary containing chunker name and parameters
-            train_path: Optional path to training data JSON file
-            question_gen_info: Optional dictionary with question generation info
-            private: Whether to create a private repository
-        """
-        # Construct full repository ID
+        ) -> None:
+        """Push dataset to the Hugging Face Hub."""
         repo_id = f"{self.username}/{repository_name}"
         
-        # Check if repository exists
-        if self._repository_exists(repo_id):
-            logger.warning(f"Repository {repo_id} already exists, skipping upload")
-            return
-            
         try:
+            # Check if repository exists
+            repo_exists = self._repository_exists(repo_id)
+            
+            if not repo_exists:
+                # Create new repository if it doesn't exist
+                create_repo(
+                    repo_id,
+                    repo_type="dataset",
+                    private=private,
+                    token=self.token
+                )
+            
             # Load data
             kb_data = self._load_json_file(knowledgebase_path)
             train_data = self._load_json_file(train_path) if train_path else None
-            
-            # Create repository
-            create_repo(
-                repo_id,
-                repo_type="dataset",
-                private=private,
-                token=self.token
-            )
             
             # Create and push README.md
             card_content = self._create_dataset_card(
@@ -125,7 +113,7 @@ class DatasetPusher:
                 question_gen_info=question_gen_info
             )
 
-            # Upload README directly to hub
+            # Upload README
             upload_file(
                 path_or_fileobj=card_content.encode('utf-8'),
                 path_in_repo="README.md",
@@ -135,7 +123,7 @@ class DatasetPusher:
             )
             logger.info(f"Uploaded README.md to {repo_id}")
             
-            # Push knowledgebase configuration
+            # Push or update knowledgebase configuration
             kb_dataset = Dataset.from_list(kb_data)
             kb_dataset.push_to_hub(
                 repo_id,
@@ -143,9 +131,9 @@ class DatasetPusher:
                 token=self.token,
                 private=private
             )
-            logger.info(f"Pushed knowledgebase configuration to {repo_id}")
+            logger.info(f"{'Updated' if repo_exists else 'Pushed'} knowledgebase configuration to {repo_id}")
             
-            # Push training data if provided
+            # Push or update training data if provided
             if train_data:
                 train_dataset = Dataset.from_list(train_data)
                 train_dataset.push_to_hub(
@@ -154,10 +142,10 @@ class DatasetPusher:
                     token=self.token,
                     private=private
                 )
-                logger.info(f"Pushed training configuration to {repo_id}")
+                logger.info(f"{'Updated' if repo_exists else 'Pushed'} training configuration to {repo_id}")
             
-            logger.info(f"Successfully completed dataset upload to {repo_id}")
+            logger.info(f"Successfully {'updated' if repo_exists else 'completed'} dataset {'update' if repo_exists else 'upload'} to {repo_id}")
             
         except Exception as e:
-            logger.error(f"Error pushing dataset to Hub: {str(e)}")
+            logger.error(f"Error {'updating' if repo_exists else 'pushing'} dataset to Hub: {str(e)}")
             raise
