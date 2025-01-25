@@ -2,8 +2,8 @@
 # Full Pipeline Configuration
 # =====================================================
 pipeline:
-  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
-  to_stage: "UPLOAD"
+  from_stage: "GENERATE"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
+  to_stage: "GENERATE"
 
 path_to_knowledgebase: "./testing/knowledgebase"
 chunker: "RecursiveTokenChunker" 
@@ -19,7 +19,8 @@ output_path: "./output/knowledgebase-quickb.json"
 
 # Where to store generated questions
 question_output_path: "./output/train_data.json"
-
+question_model: "gpt-4o-mini"
+question_max_workers: 20
 deduplication:
   enabled: true
   similarity_threshold: 0.85

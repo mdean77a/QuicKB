@@ -207,11 +207,11 @@ Sentence Transformers
 Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
+
+- Non OpenAI model support for synthetic questions
 - Custom Model Card (Using base from SBERT currently)
-- Different Model Support for question generation
-- Handle when existing repo for model is in the way
 - Update model card for dataset (link to trained model and vice versa)
-- Refactoring the trainer for better modular development
+- Refactoring the trainer for better modular development (and integration with overall configs)
 - python packages for whether ur cpu or gpu
 
 ## License
