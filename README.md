@@ -64,11 +64,15 @@ python src/main.py
 The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example with all available options:
 
 ```yaml
+# Pipeline Stage Control
 pipeline:
   from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
   to_stage: "UPLOAD"
 
+# Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
+
+# Chunking
 chunker: "RecursiveTokenChunker" 
 chunker_arguments:
   chunk_size: 400
@@ -77,12 +81,12 @@ chunker_arguments:
   keep_separator: true
   is_separator_regex: false
   length_function: "character"
+output_path: "./output/knowledgebase-quickb.json" # Chunked Output Path
 
-output_path: "./output/knowledgebase-quickb.json"
-
-# Where to store generated questions
-question_output_path: "./output/train_data.json"
-
+# Synthetic Dataset Generation
+question_output_path: "./output/train_data.json" # Generated Questions Output Path
+question_model: "gpt-4o-mini"
+question_max_workers: 20
 deduplication:
   enabled: true
   similarity_threshold: 0.85
@@ -92,7 +96,7 @@ hub_username: "AdamLucek"
 hub_token: null  # or rely on HF_TOKEN environment variable
 hub_private: false
 
-# Embedding training config (only used if TRAIN stage is included)
+# Embedding training config
 training:
   model_id: "nomic-ai/modernbert-embed-base"
   output_dir: "./output/modernbert_mtl"
@@ -211,7 +215,7 @@ Todo List:
 - Non OpenAI model support for synthetic questions
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
-- Refactoring the trainer for better modular development (and integration with overall configs)
+- Refactoring the trainer for better modular development (and integration with overall pipeline execution)
 - python packages for whether ur cpu or gpu
 
 ## License
