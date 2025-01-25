@@ -90,6 +90,7 @@ chunker_config:
   upload_config:
     push_to_hub: true
     hub_private: false
+    hub_dataset_id: "AdamLucek/quickb"
 
 # Question Generation with upload options
 question_generation:
@@ -104,6 +105,7 @@ question_generation:
   upload_config:
     push_to_hub: true
     hub_private: false
+    hub_dataset_id: "AdamLucek/quickb"
 
 # Training config remains unchanged
 training:

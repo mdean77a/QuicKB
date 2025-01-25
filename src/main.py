@@ -32,6 +32,7 @@ class UploadConfig(BaseModel):
     
     push_to_hub: bool = False
     hub_private: bool = False
+    hub_dataset_id: Optional[str] = None
 
 class ChunkerConfig(BaseModel):
     model_config = ConfigDict(
@@ -185,15 +186,15 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
         config.chunker_config.upload_config and 
         config.chunker_config.upload_config.push_to_hub):
         try:
-            
             # Initialize pusher
             pusher = DatasetPusher(
                 username=config.hub_username,
                 token=config.hub_token
             )
             
-            # Get repository name from output path
-            repository_name = Path(config.chunker_config.output_path).stem
+            # Get repository id from config or fallback to path
+            repository_id = (config.chunker_config.upload_config.hub_dataset_id 
+                           or f"{config.hub_username}/{Path(config.chunker_config.output_path).stem}")
             
             # Collect chunker info
             chunker_info = {
@@ -203,12 +204,12 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
             
             # Push dataset
             pusher.push_dataset(
-                repository_name=repository_name,
+                hub_dataset_id=repository_id,
                 knowledgebase_path=config.chunker_config.output_path,
                 chunker_info=chunker_info,
                 private=config.chunker_config.upload_config.hub_private
             )
-            logger.info(f"Successfully uploaded chunks to Hub: {config.hub_username}/{repository_name}")
+            logger.info(f"Successfully uploaded chunks to Hub: {repository_id}")
         except Exception as e:
             logger.error(f"Failed to upload chunks to Hub: {str(e)}")
     
@@ -305,14 +306,12 @@ def generate_questions(
                 token=config.hub_token
             )
             
-            # Get repository name from chunks output path to maintain consistency
-            repository_name = Path(config.chunker_config.output_path).stem
-            
-            # Collect chunker info
-            chunker_info = {
-                'chunker_name': config.chunker_config.chunker,
-                'chunker_params': config.chunker_config.chunker_arguments
-            }
+            # Get repository id from config or fallback to maintaining consistency with chunks
+            repository_id = (
+                config.question_generation.upload_config.hub_dataset_id or
+                (config.chunker_config.upload_config.hub_dataset_id if config.chunker_config.upload_config else None) or
+                f"{config.hub_username}/{Path(config.chunker_config.output_path).stem}"
+            )
             
             # Collect question generation info
             question_gen_info = {
@@ -322,16 +321,26 @@ def generate_questions(
                 'num_deduped': metrics['num_questions_deduped']
             }
             
-            # Push or update dataset
+            # If using same repository as chunks, include chunker info
+            chunker_info = None
+            if (not config.question_generation.upload_config.hub_dataset_id or 
+                config.question_generation.upload_config.hub_dataset_id == 
+                config.chunker_config.upload_config.hub_dataset_id):
+                chunker_info = {
+                    'chunker_name': config.chunker_config.chunker,
+                    'chunker_params': config.chunker_config.chunker_arguments
+                }
+            
+            # Push dataset
             pusher.push_dataset(
-                repository_name=repository_name,
-                knowledgebase_path=config.chunker_config.output_path,
+                hub_dataset_id=repository_id,
+                knowledgebase_path=config.chunker_config.output_path if chunker_info else None,
                 chunker_info=chunker_info,
                 train_path=config.question_generation.output_path,
                 question_gen_info=question_gen_info,
                 private=config.question_generation.upload_config.hub_private
             )
-            logger.info(f"Successfully uploaded train dataset to Hub: {config.hub_username}/{repository_name}")
+            logger.info(f"Successfully uploaded train dataset to Hub: {repository_id}")
         except Exception as e:
             logger.error(f"Failed to upload train dataset to Hub: {str(e)}")
     

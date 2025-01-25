@@ -18,17 +18,8 @@ library_name: quickb
 
 Generated using [QuicKB](https://github.com/AdamLucek/quickb), a text chunking and synthetic question generation tool developed by [Adam Lucek](https://huggingface.co/AdamLucek).
 
-## Dataset Details
-
-### Chunking Configuration
-- **Chunker**: {chunker_name}
-- **Parameters**:
-    {chunker_params}
+{chunker_section}
 
 {question_generation}
 
-### Dataset Structure
-This dataset contains {config_count} configurations:
-1. `knowledgebase`: Contains the chunked text documents
-   - Fields: id (string), text (string), source (string)
-{train_config}
+{dataset_structure}
