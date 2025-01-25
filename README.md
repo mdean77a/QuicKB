@@ -256,7 +256,7 @@ Todo List:
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development (and integration with overall pipeline execution)
-- python packages for whether ur cpu or gpu
+- CPU training support
 
 ## License
 
