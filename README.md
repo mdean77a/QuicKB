@@ -225,8 +225,6 @@ ChromaDB: [Evaluating Chunking Strategies for Retrieval](https://research.trychr
 }
 ```
 
-Philipp Schmid's [Fine-tune Embedding models for Retrieval Augmented Generation (RAG)](https://www.philschmid.de/fine-tune-embedding-model-for-rag#3-define-loss-function-with-matryoshka-representation)
-
 Sentence Transformers
 ```bibtext
 @inproceedings{reimers-2019-sentence-bert,
