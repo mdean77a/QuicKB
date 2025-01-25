@@ -50,11 +50,13 @@ pip install -e .
 
 ## Usage
 
-1. Configure your pipeline in `config.yaml`
-2. Run:
+1. Convert your unstructured data into text files.
+2. Configure your pipeline in `config.yaml`
+3. Run:
 ```bash
 python src/main.py
 ```
+4. Enjoy!
 
 ## Configuration Guide
 
