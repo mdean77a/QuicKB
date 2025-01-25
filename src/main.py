@@ -22,11 +22,43 @@ class PipelineStage(Enum):
     CHUNK = auto()
     GENERATE = auto()
     TRAIN = auto()
-    UPLOAD = auto()
+
+class UploadConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid'
+    )
+    
+    push_to_hub: bool = False
+    hub_private: bool = False
+
+class ChunkerConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid'
+    )
+    
+    chunker: str
+    chunker_arguments: Dict[str, Any]
+    output_path: str
+    upload_config: Optional[UploadConfig] = None
+
+class QuestionGeneratorConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid'
+    )
+    
+    output_path: str
+    model: str
+    model_api_base: Optional[str] = None
+    embedding_model: Optional[str] = None 
+    embedding_api_base: Optional[str] = None
+    max_workers: int = 20
+    deduplication_enabled: bool = True
+    similarity_threshold: float = 0.85
+    upload_config: Optional[UploadConfig] = None
 
 class TrainingConfig(BaseModel):
     model_config = ConfigDict(
-        extra='forbid'  # Prevent extra fields
+        extra='forbid'
     )
     
     model_id: str = "nomic-ai/modernbert-embed-base"
@@ -38,55 +70,30 @@ class TrainingConfig(BaseModel):
     gradient_accumulation_steps: int = 16
     metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
     push_to_hub: bool = False
-    hub_model_id: Optional[str] = None
     hub_private: bool = False
-
-class QuestionGeneratorConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid'
-    )
-    
-    output_path: str
-    model: str
-    model_api_base: Optional[str] = None
-    embedding_model: Optional[str] = None
-    embedding_api_base: Optional[str] = None
-    max_workers: int = 20
-    deduplication_enabled: bool = True
-    similarity_threshold: float = 0.85
+    hub_model_id: Optional[str] = None
 
 class PipelineConfig(BaseModel):
     model_config = ConfigDict(
         extra='forbid'
     )
     
+    # Pipeline control
     pipeline: Dict[str, str]
+    
+    # Base HF credentials
+    hub_username: Optional[str] = None
+    hub_token: Optional[str] = None
     
     # Document chunking
     path_to_knowledgebase: str
-    chunker: str
-    chunker_arguments: Dict[str, Any]
-    output_path: str
-
-    # Synthetic question generation
+    chunker_config: ChunkerConfig
+    
+    # Question generation
     question_generation: Optional[QuestionGeneratorConfig] = None
-
-    # Hugging Face Hub
-    hub_username: Optional[str] = None
-    hub_token: Optional[str] = None
-    hub_private: bool = True
-
+    
     # Training
     training: Optional[TrainingConfig] = None
-    
-    @classmethod
-    def from_yaml(cls, yaml_path: str | Path) -> "PipelineConfig":
-        """Load configuration from a YAML file."""
-        import yaml
-        
-        with open(yaml_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-        return cls.model_validate(data)
 
 @field_validator('chunker')
 @classmethod
@@ -99,17 +106,31 @@ def validate_chunker_type(cls, v, info):
 
 def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
     """Load and validate pipeline configuration."""
-    return PipelineConfig.from_yaml(config_path)
+    import yaml
+    from pathlib import Path
+    
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+        
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_data = yaml.safe_load(f)
+        
+        return PipelineConfig.model_validate(config_data)
+    except Exception as e:
+        logger.error(f"Error loading config from {config_path}: {str(e)}")
+        raise
 
 def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
-    """Process documents into chunks."""
+    """Process documents into chunks and optionally upload to Hub."""
     from chunking import ChunkerRegistry
     
     # Get chunker class
-    chunker_class = ChunkerRegistry.get_chunker(config.chunker)
+    chunker_class = ChunkerRegistry.get_chunker(config.chunker_config.chunker)
     
     # Make a copy of chunker arguments
-    args = config.chunker_arguments.copy()
+    args = config.chunker_config.chunker_arguments.copy()
     
     # Resolve embedder or token counter references
     for key in ['embedding_function', 'length_function']:
@@ -149,11 +170,44 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
             continue
     
     # Save results
-    output_path = Path(config.output_path)
+    output_path = Path(config.chunker_config.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
+    
+    # Handle upload if configured
+    if (config.hub_username and 
+        config.chunker_config.upload_config and 
+        config.chunker_config.upload_config.push_to_hub):
+        try:
+            from hub_upload.dataset_pusher import DatasetPusher
+            
+            # Initialize pusher
+            pusher = DatasetPusher(
+                username=config.hub_username,
+                token=config.hub_token
+            )
+            
+            # Get repository name from output path
+            repository_name = Path(config.chunker_config.output_path).stem
+            
+            # Collect chunker info
+            chunker_info = {
+                'chunker_name': config.chunker_config.chunker,
+                'chunker_params': config.chunker_config.chunker_arguments
+            }
+            
+            # Push dataset
+            pusher.push_dataset(
+                repository_name=repository_name,
+                knowledgebase_path=config.chunker_config.output_path,
+                chunker_info=chunker_info,
+                private=config.chunker_config.upload_config.hub_private
+            )
+            logger.info(f"Successfully uploaded chunks to Hub: {config.hub_username}/{repository_name}")
+        except Exception as e:
+            logger.error(f"Failed to upload chunks to Hub: {str(e)}")
     
     return results
 
@@ -161,6 +215,7 @@ def generate_questions(
     config: PipelineConfig, 
     kb_dataset: List[Dict[str, Any]]
 ) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """Generate questions and optionally upload to Hub."""
     from synth_dataset.question_generator import QuestionGenerator
     import logging
     
@@ -229,7 +284,7 @@ def generate_questions(
     logger.info(f"Created {len(train_records)} training records (skipped {skipped_questions} questions)")
     
     # Save results
-    if config.question_generation and config.question_generation.output_path:
+    if config.question_generation.output_path:
         output_path = Path(config.question_generation.output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -239,14 +294,53 @@ def generate_questions(
             logger.info(f"Saved training records to {output_path}")
         except Exception as e:
             logger.error(f"Failed to save training records: {str(e)}")
+
+    # Handle upload if configured
+    if (config.hub_username and 
+        config.question_generation.upload_config and 
+        config.question_generation.upload_config.push_to_hub):
+        try:
+            from hub_upload.dataset_pusher import DatasetPusher
+            
+            # Initialize pusher
+            pusher = DatasetPusher(
+                username=config.hub_username,
+                token=config.hub_token
+            )
+            
+            # Get repository name from chunks output path to maintain consistency
+            repository_name = Path(config.chunker_config.output_path).stem
+            
+            # Collect chunker info
+            chunker_info = {
+                'chunker_name': config.chunker_config.chunker,
+                'chunker_params': config.chunker_config.chunker_arguments
+            }
+            
+            # Collect question generation info
+            question_gen_info = {
+                'model_name': config.question_generation.model,
+                'similarity_threshold': config.question_generation.similarity_threshold,
+                'num_questions': metrics['num_questions_original'],
+                'num_deduped': metrics['num_questions_deduped']
+            }
+            
+            # Push or update dataset
+            pusher.push_dataset(
+                repository_name=repository_name,
+                knowledgebase_path=config.chunker_config.output_path,
+                chunker_info=chunker_info,
+                train_path=config.question_generation.output_path,
+                question_gen_info=question_gen_info,
+                private=config.question_generation.upload_config.hub_private
+            )
+            logger.info(f"Successfully uploaded train dataset to Hub: {config.hub_username}/{repository_name}")
+        except Exception as e:
+            logger.error(f"Failed to upload train dataset to Hub: {str(e)}")
     
     return train_records, metrics
 
-def train_model(
-    config: PipelineConfig,
-    kb_dataset: List[Dict[str, Any]],
-    train_dataset: List[Dict[str, Any]]
-):
+def train_model(config: PipelineConfig, kb_dataset: List[Dict[str, Any]], train_dataset: List[Dict[str, Any]]):
     """Train the embedding model."""
     from training.train import main as train_main
     train_main(config)
@@ -283,7 +377,7 @@ def upload_to_hub(
         # Collect question generation info if enabled
         question_gen_info = None
         question_gen_info = {
-            'model_name': "gpt-4o-mini",
+            'model_name': config.question_generation.model,
             'similarity_threshold': config.deduplication.similarity_threshold,
             'num_questions': question_metrics['num_questions_original'] if question_metrics else len(train_dataset),
             'num_deduped': question_metrics['num_questions_deduped'] if question_metrics else len(train_dataset)
@@ -315,7 +409,7 @@ def run_pipeline(config: PipelineConfig):
         kb_dataset = process_chunks(config)
     else:
         logger.info("Skipping CHUNK stage. Loading existing chunks.")
-        with open(config.output_path, "r", encoding="utf-8") as f:
+        with open(config.chunker_config.output_path, "r", encoding="utf-8") as f:
             kb_dataset = json.load(f)
 
     # 2. GENERATE
@@ -327,8 +421,10 @@ def run_pipeline(config: PipelineConfig):
     else:
         logger.info("Skipping GENERATE stage.")
         # If we skip generate, we can load from disk if we need it for TRAIN
-        if (to_stage.value >= PipelineStage.TRAIN.value) and config.question_output_path:
-            with open(config.question_output_path, "r", encoding="utf-8") as f:
+        if (to_stage.value >= PipelineStage.TRAIN.value and 
+            config.question_generation and 
+            config.question_generation.output_path):
+            with open(config.question_generation.output_path, "r", encoding="utf-8") as f:
                 train_dataset = json.load(f)
 
     # 3. TRAIN
@@ -339,22 +435,6 @@ def run_pipeline(config: PipelineConfig):
         train_model(config, kb_dataset, train_dataset)
     else:
         logger.info("Skipping TRAIN stage.")
-
-    # 4. UPLOAD
-    if from_stage.value <= PipelineStage.UPLOAD.value <= to_stage.value:
-        logger.info("Running UPLOAD stage.")
-        # Optionally only do it if there's a hub_username
-        if config.hub_username:
-            upload_to_hub(
-                config,
-                kb_dataset=kb_dataset,
-                train_dataset=train_dataset,
-                question_metrics=question_metrics
-            )
-        else:
-            logger.info("No hub_username configured. Skipping UPLOAD.")
-    else:
-        logger.info("Skipping UPLOAD stage.")
 
     logger.info("Pipeline complete!")
 

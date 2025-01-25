@@ -154,21 +154,26 @@ def save_metrics_to_file(before: Dict, after: Dict, dim_list: List[int], path="m
         f.write(f"After:  {sa:.3f}\n")
         f.write(f"Δ:      {ds:+.3f}\n")
 
-def main(config_path: str = "config.yaml"):
-    cfg = load_main_config(config_path)
+def main(config):
+    """Main training function."""
+    if not hasattr(config, 'training') or not config.training:
+        raise ValueError("Training configuration is required but not provided")
 
-    train_cfg = cfg.get("training", {})
-    kb_path = cfg.get("output_path", "./output/knowledgebase.json")
-    train_path = cfg.get("question_output_path", "./output/train_data.json")
+    # Get paths from config
+    kb_path = config.chunker_config.output_path
+    train_path = config.question_generation.output_path if config.question_generation else None
 
+    # Verify files exist
     if not os.path.exists(kb_path):
         raise FileNotFoundError(f"Knowledgebase file not found: {kb_path}")
-    if not os.path.exists(train_path):
+    if train_path and not os.path.exists(train_path):
         raise FileNotFoundError(f"Training data file not found: {train_path}")
 
+    # Load knowledge base data
     with open(kb_path, "r", encoding="utf-8") as f:
         kb_data = json.load(f)
 
+    # Load and prepare training dataset
     train_dataset_full = load_dataset("json", data_files=train_path, split="train")
     if "id" not in train_dataset_full.column_names:
         train_dataset_full = train_dataset_full.add_column("id", list(range(len(train_dataset_full))))
@@ -180,6 +185,7 @@ def main(config_path: str = "config.yaml"):
     test_dataset = dataset_split["test"]
     logger.info(f"Train size: {len(train_dataset)} | Test size: {len(test_dataset)}")
 
+    # Build evaluation structures
     corpus, queries, relevant_docs = build_evaluation_structures(
         kb_dataset=kb_data,
         test_dataset=test_dataset,
@@ -187,7 +193,8 @@ def main(config_path: str = "config.yaml"):
         kb_text_field="text"
     )
 
-    dim_list = train_cfg.get("matryoshka_dimensions", [768, 512, 256, 128, 64])
+    # Setup evaluators
+    dim_list = config.training.matryoshka_dimensions
     evaluators = []
     for d in dim_list:
         evaluators.append(
@@ -202,14 +209,14 @@ def main(config_path: str = "config.yaml"):
         )
     evaluator = SequentialEvaluator(evaluators)
 
-    base_model_id = train_cfg.get("model_id", "nomic-ai/modernbert-embed-base")
+    # Initialize base model and run baseline evaluation
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    base_model = SentenceTransformer(base_model_id, device=device)
+    base_model = SentenceTransformer(config.training.model_id, device=device)
     baseline_results = run_baseline_eval(base_model, evaluator, dim_list)
 
     logger.info("Re-initializing for training.")
     model = SentenceTransformer(
-        base_model_id,
+        config.training.model_id,
         device=device,
         model_kwargs={"attn_implementation": "sdpa"},
         model_card_data=SentenceTransformerModelCardData(
@@ -219,6 +226,7 @@ def main(config_path: str = "config.yaml"):
         ),
     )
 
+    # Setup loss functions
     base_loss = MultipleNegativesRankingLoss(model)
     train_loss = MatryoshkaLoss(
         model=model,
@@ -226,19 +234,13 @@ def main(config_path: str = "config.yaml"):
         matryoshka_dims=dim_list
     )
 
-    output_dir = train_cfg.get("output_dir", "./output/finetuned_model")
-    num_epochs = train_cfg.get("epochs", 4)
-    lr = train_cfg.get("learning_rate", 2e-5)
-    batch_size = train_cfg.get("batch_size", 32)
-    grad_accum = train_cfg.get("gradient_accumulation_steps", 16)
-    metric_for_best_model = train_cfg.get("metric_for_best_model", "eval_dim_128_cosine_ndcg@10")
-
+    # Setup training arguments
     args = SentenceTransformerTrainingArguments(
-        output_dir=output_dir,
-        num_train_epochs=num_epochs,
-        per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=grad_accum,
-        learning_rate=lr,
+        output_dir=config.training.output_dir,
+        num_train_epochs=config.training.epochs,
+        per_device_train_batch_size=config.training.batch_size,
+        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        learning_rate=config.training.learning_rate,
         warmup_ratio=0.1,
         lr_scheduler_type="cosine",
         optim="adamw_torch_fused",
@@ -250,10 +252,11 @@ def main(config_path: str = "config.yaml"):
         logging_steps=10,
         save_total_limit=3,
         load_best_model_at_end=True,
-        metric_for_best_model=metric_for_best_model,
+        metric_for_best_model=config.training.metric_for_best_model,
         report_to="none",
     )
 
+    # Prepare final training dataset and trainer
     final_train_dataset = train_dataset.select_columns(["anchor", "positive"])
     trainer = SentenceTransformerTrainer(
         model=model,
@@ -263,26 +266,41 @@ def main(config_path: str = "config.yaml"):
         evaluator=evaluator,
     )
 
+    # Train model
     logger.info("Starting training...")
     trainer.train()
     trainer.save_model()
-    fine_tuned_model = SentenceTransformer(output_dir, device=device)
+    
+    # Evaluate fine-tuned model
+    fine_tuned_model = SentenceTransformer(config.training.output_dir, device=device)
     final_results = run_final_eval(fine_tuned_model, evaluator, dim_list)
 
-    save_metrics_to_file(baseline_results, final_results, dim_list, path=f"{output_dir}/metrics_comparison.txt")
+    # Save metrics
+    save_metrics_to_file(
+        baseline_results, 
+        final_results, 
+        dim_list, 
+        path=f"{config.training.output_dir}/metrics_comparison.txt"
+    )
 
-    if train_cfg.get("push_to_hub", False):
+    # Handle model upload if configured
+    if config.training.push_to_hub:
         HF_TOKEN = os.getenv("HF_TOKEN", "")
         if HF_TOKEN:
             login(token=HF_TOKEN)
         else:
             logger.warning("No HF_TOKEN in env, attempting login anyway.")
-        hub_repo_id = train_cfg.get("hub_model_id", "YourUserName/modernbert-embed-ft")
-        logger.info(f"Pushing model to HF Hub: {hub_repo_id}")
-        
-        trainer.model.push_to_hub(hub_repo_id, exist_ok=True, private=train_cfg.get("hub_private", False))
-        
-        logger.info("Upload complete!")
+            
+        if not config.training.hub_model_id:
+            logger.warning("No hub_model_id specified, skipping upload")
+        else:
+            logger.info(f"Pushing model to HF Hub: {config.training.hub_model_id}")
+            trainer.model.push_to_hub(
+                config.training.hub_model_id, 
+                exist_ok=True, 
+                private=config.training.hub_private
+            )
+            logger.info("Upload complete!")
 
     logger.info("Training pipeline finished.")
 

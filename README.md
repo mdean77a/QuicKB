@@ -66,24 +66,32 @@ The pipeline is controlled through a single `config.yaml` file. Here's a complet
 ```yaml
 # Pipeline Stage Control
 pipeline:
-  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN, UPLOAD
-  to_stage: "UPLOAD"
+  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN
+  to_stage: "TRAIN"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
 
-# Chunking
-chunker: "RecursiveTokenChunker" 
-chunker_arguments:
-  chunk_size: 400
-  chunk_overlap: 0
-  separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
-  keep_separator: true
-  is_separator_regex: false
-  length_function: "character"
-output_path: "./output/knowledgebase-quickb.json"
+# Base HF Hub credentials
+hub_username: "AdamLucek"
+hub_token: null  # or rely on HF_TOKEN environment variable
 
-# Synthetic Dataset Generation
+# Chunking config with upload options
+chunker_config:
+  chunker: "RecursiveTokenChunker" 
+  chunker_arguments:
+    chunk_size: 400
+    chunk_overlap: 0
+    separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
+    keep_separator: true
+    is_separator_regex: false
+    length_function: "character"
+  output_path: "./output/knowledgebase-quickb.json"
+  upload_config:
+    push_to_hub: true
+    hub_private: false
+
+# Question Generation with upload options
 question_generation:
   output_path: "./output/train_data.json"
   model: "openai/gpt-4o-mini"
@@ -93,13 +101,11 @@ question_generation:
   max_workers: 20
   deduplication_enabled: true
   similarity_threshold: 0.85
+  upload_config:
+    push_to_hub: true
+    hub_private: false
 
-# Hugging Face Hub info
-hub_username: "AdamLucek"
-hub_token: null  # or rely on HF_TOKEN environment variable
-hub_private: false
-
-# Embedding training config
+# Training config remains unchanged
 training:
   model_id: "nomic-ai/modernbert-embed-base"
   output_dir: "./output/modernbert_mtl"
@@ -246,6 +252,7 @@ Todo List:
 
 - pydantic v2 fields warning (and cleaner config args in general)
 - LiteLLM integration into chunkers
+- clean up imports BS in main.py
 - Custom Model Card (Using base from SBERT currently)
 - Update model card for dataset (link to trained model and vice versa)
 - Refactoring the trainer for better modular development (and integration with overall pipeline execution)
