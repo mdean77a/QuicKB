@@ -289,12 +289,10 @@ def main(config):
     # Handle model upload if configured
     if (config.training.upload_config and 
         config.training.upload_config.push_to_hub):
-        HF_TOKEN = os.getenv("HF_TOKEN", "")
-        if HF_TOKEN:
-            login(token=HF_TOKEN)
-        else:
-            logger.warning("No HF_TOKEN in env, attempting login anyway.")
             
+        if not config.hub_token and not os.getenv("HF_TOKEN"):
+            logger.warning("No HF_TOKEN in env or config, attempting login anyway.")
+                
         if not config.training.upload_config.hub_model_id:
             logger.warning("No hub_model_id specified, skipping upload")
         else:
