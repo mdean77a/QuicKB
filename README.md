@@ -296,7 +296,6 @@ Contributions welcome! Please feel free to submit a Pull Request.
 Todo List:
 
 - pydantic v2 fields warning
-- Transformers verions with torch handling
 - Custom Model Card (Using base from SBERT currently)
 - CPU training support
 
