@@ -22,7 +22,8 @@ class QuestionGenerator:
         similarity_threshold: float = 0.85,
         max_workers: int = 20,
         model_api_base: str = None,
-        embedding_api_base: str = None
+        embedding_api_base: str = None,
+        embedding_batch_size: int = 500
     ):
         self.api_key = api_key
         self.llm_model = llm_model
@@ -34,6 +35,7 @@ class QuestionGenerator:
         self.max_workers = max_workers
         self.model_api_base = model_api_base
         self.embedding_api_base = embedding_api_base
+        self.embedding_batch_size = embedding_batch_size
 
     def _load_prompt(self, path: str) -> str:
         with open(path, 'r') as f:
@@ -110,21 +112,36 @@ class QuestionGenerator:
             # Get embeddings using LiteLLM
             questions_text = [q["question"] for q in results]
             
-            # Prepare embedding kwargs
-            embedding_kwargs = {
-                "model": self.embedding_model,
-                "input": questions_text,
-                "api_key": self.api_key
-            }
+            # Process in batches (adjust based on API limits)
+            BATCH_SIZE = embedding_batch_size
+            all_embeddings = []
             
-            # Add embedding_api_base if provided
-            if self.embedding_api_base:
-                embedding_kwargs["api_base"] = self.embedding_api_base
+            num_batches = (len(questions_text) + BATCH_SIZE - 1) // BATCH_SIZE  # Calculate total batches
             
-            response = embedding(**embedding_kwargs)
-            embeddings = [data["embedding"] for data in response.data]
+            with tqdm(total=num_batches, desc="Generating embeddings") as pbar:
+                for i in range(0, len(questions_text), BATCH_SIZE):
+                    batch = questions_text[i:i + BATCH_SIZE]
+                    
+                    embedding_kwargs = {
+                        "model": self.embedding_model,
+                        "input": batch,
+                        "api_key": self.api_key
+                    }
+                    
+                    if self.embedding_api_base:
+                        embedding_kwargs["api_base"] = self.embedding_api_base
+                    
+                    try:
+                        response = embedding(**embedding_kwargs)
+                        batch_embeddings = [data["embedding"] for data in response.data]
+                        all_embeddings.extend(batch_embeddings)
+                    except Exception as e:
+                        logger.error(f"Error during embedding batch {i//BATCH_SIZE}: {str(e)}")
+                        return results
+                    
+                    pbar.update(1)
             
-            # Deduplicate questions
-            results = self.deduplicator.deduplicate(results, embeddings)
+            # Use all collected embeddings for deduplication
+            results = self.deduplicator.deduplicate(results, all_embeddings)
         
         return results

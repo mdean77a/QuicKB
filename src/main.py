@@ -71,6 +71,7 @@ class QuestionGeneratorConfig(BaseModel):
     litellm_config: LiteLLMConfig
     max_workers: int = 20
     deduplication_enabled: bool = True
+    dedup_embedding_batch_size: int = 500
     similarity_threshold: float = 0.85
     upload_config: Optional[UploadConfig] = None
 
@@ -161,12 +162,14 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     
     # Get chunker class
     chunker_class = ChunkerRegistry.get_chunker(config.chunker_config.chunker)
-    
+
     # Make a copy of chunker arguments
     args = config.chunker_config.chunker_arguments.copy()
     
     # Initialize chunker
     chunker = chunker_class(**args)
+
+    logger.info(f"Initialized Chunker: {config.chunker_config.chunker}")
     
     # Process files
     base_path = Path(config.path_to_knowledgebase)
@@ -255,6 +258,7 @@ def generate_questions(
         max_workers=config.question_generation.max_workers,
         model_api_base=config.question_generation.litellm_config.model_api_base,
         embedding_api_base=config.question_generation.litellm_config.embedding_api_base,
+        embedding_batch_size=config.question_generation.dedup_embedding_batch_size
     )
     
     # Get unique texts and build a text-to-id mapping

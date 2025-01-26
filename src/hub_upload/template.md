@@ -16,7 +16,9 @@ library_name: quickb
 
 # {dataset_name}
 
-Generated using [QuicKB](https://github.com/AdamLucek/quickb), a text chunking and synthetic question generation tool developed by [Adam Lucek](https://huggingface.co/AdamLucek).
+Generated using [QuicKB](https://github.com/AdamLucek/quickb), a tool developed by [Adam Lucek](https://huggingface.co/AdamLucek).
+
+QuicKB optimizes document retrieval by creating fine-tuned knowledge bases through an end-to-end pipeline that handles document chunking, training data generation, and embedding model optimization.
 
 {chunker_section}
 
