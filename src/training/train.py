@@ -212,6 +212,7 @@ def main(config):
     # Initialize base model and run baseline evaluation
     device = "cuda" if torch.cuda.is_available() else "cpu"
     base_model = SentenceTransformer(config.training.model_settings.model_id, device=device)
+    base_model.max_seq_length = config.training.model_settings.max_seq_length
     baseline_results = run_baseline_eval(base_model, evaluator, dim_list)
 
     logger.info("Re-initializing for training.")
@@ -225,6 +226,7 @@ def main(config):
             model_name="Fine-tuned with [QuicKB](https://github.com/ALucek/QuicKB)",
         ),
     )
+    model.max_seq_length = config.training.model_settings.max_seq_length
 
     # Setup loss functions
     base_loss = MultipleNegativesRankingLoss(model)
@@ -273,6 +275,7 @@ def main(config):
     
     # Evaluate fine-tuned model
     fine_tuned_model = SentenceTransformer(config.training.training_arguments.output_path, device=device)
+    fine_tuned_model.max_seq_length = config.training.model_settings.max_seq_length
     final_results = run_final_eval(fine_tuned_model, evaluator, dim_list)
 
     # Save metrics

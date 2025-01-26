@@ -81,6 +81,7 @@ class ModelSettings(BaseModel):
     model_id: str
     matryoshka_dimensions: List[int] = [768, 512, 256, 128, 64]
     metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
+    max_seq_length: int = 768
 
 class TrainingArguments(BaseModel):
     """Arguments for model training."""

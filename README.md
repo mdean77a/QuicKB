@@ -82,7 +82,7 @@ chunker_config:
     keep_separator: true
     is_separator_regex: false
     length_type: "character"
-  
+
   upload_config:
     push_to_hub: true
     hub_private: false
@@ -111,9 +111,10 @@ training:
     model_id: "nomic-ai/modernbert-embed-base"
     matryoshka_dimensions: [768, 512, 256, 128, 64]
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
+    max_seq_length: 1024
   
   training_arguments:
-    output_path: "./output/modernbert_mtl"
+    output_path: "./output/modernbert_quickb"
     epochs: 4
     learning_rate: 2.0e-5
     batch_size: 32
@@ -294,7 +295,6 @@ Contributions welcome! Please feel free to submit a Pull Request.
 Todo List:
 
 - pydantic v2 fields warning
-- verify modified kamradt training OOM issue (max_seq_length?)
 - Transformers verions with torch handling
 - Custom Model Card (Using base from SBERT currently)
 - CPU training support

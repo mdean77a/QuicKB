@@ -11,5 +11,5 @@ setup(
             'quickb=main:main',
         ],
     },
-    python_requires='>=3.11',
+    python_requires='>=3.10',
 )
