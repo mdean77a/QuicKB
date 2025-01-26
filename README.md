@@ -146,7 +146,6 @@ chunker_config:
   chunker: "FixedTokenChunker"
   chunker_arguments:
     encoding_name: "cl100k_base"
-    model_name: "text-embedding-3-large"  # Only needed if using model-specific tokenizer
     chunk_size: 400
     chunk_overlap: 50
     length_type: "token"
