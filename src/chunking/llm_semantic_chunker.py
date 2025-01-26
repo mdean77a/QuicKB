@@ -34,20 +34,22 @@ class LLMSemanticChunker(BaseChunker):
     def get_prompt(self, chunked_input, current_chunk=0, invalid_response=None):
         """Generate the prompt for the LLM."""
         base_prompt = (
-            "You are an expert document analyzer. Split this text into thematic sections. "
-            "Chunks are marked with <|start_chunk_X|> tags. Respond with 'split_after: ' "
-            "followed by comma-separated chunk numbers where splits should occur."
+            "You are an assistant specialized in splitting text into thematically consistent sections. "
+            "The text has been divided into chunks, each marked with <|start_chunk_X|> and <|end_chunk_X|> tags, where X is the chunk number. "
+            "Your task is to identify the points where splits should occur, such that consecutive chunks of similar themes stay together. "
+            "Respond with a list of chunk IDs where you believe a split should be made. For example, if chunks 1 and 2 belong together but chunk 3 starts a new topic, you would suggest a split after chunk 2. THE CHUNKS MUST BE IN ASCENDING ORDER."
+            "Your response should be in the form: 'split_after: 3, 5'."
         )
 
         user_content = (
             f"CHUNKED_TEXT: {chunked_input}\n\n"
             f"Respond with split points (ascending, ≥{current_chunk}). "
-            "Include at least one split."
+            "Respond only with the IDs of the chunks where you believe a split should occur. YOU MUST RESPOND WITH AT LEAST ONE SPLIT. THESE SPLITS MUST BE IN ASCENDING ORDER"
         )
         if invalid_response:
             user_content += (
                 f"\n\\Previous invalid response: {invalid_response}. "
-                "Do not repeat these numbers."
+                "DO NOT REPEAT THIS ARRAY OF NUMBERS. Please try again."
             )
 
         return [
