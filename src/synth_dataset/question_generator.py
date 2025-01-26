@@ -113,7 +113,7 @@ class QuestionGenerator:
             questions_text = [q["question"] for q in results]
             
             # Process in batches (adjust based on API limits)
-            BATCH_SIZE = embedding_batch_size
+            BATCH_SIZE = self.embedding_batch_size
             all_embeddings = []
             
             num_batches = (len(questions_text) + BATCH_SIZE - 1) // BATCH_SIZE  # Calculate total batches

@@ -35,9 +35,9 @@ question_generation:
     model_api_base: null
     embedding_model: "text-embedding-3-large"
     embedding_api_base: null
-  max_workers: 20
+  max_workers: 100
   deduplication_enabled: true
-  dedup_embedding_batch_size: 500
+  dedup_embedding_batch_size: 2048
   similarity_threshold: 0.85
 
   upload_config:
