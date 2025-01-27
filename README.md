@@ -2,35 +2,37 @@
 
 <img src="qkb_logo.png" width=175>
 
-Optimize Document Retrieval with Fine-tuned Knowledge Bases
+Optimize Document Retrieval with Fine-Tuned KnowledgeBases
 
 ## Overview
 
-QuicKB optimizes document retrieval by creating fine-tuned knowledge bases through an end-to-end pipeline that handles document chunking, training data generation, and embedding model optimization.
+QuicKB optimizes document retrieval by creating fine-tuned knowledgebases through an end-to-end machine learning pipeline that handles document chunking, training data generation, and embedding model training.
 
 ## Key Features
 
 ### Document Chunking
-- Token-based strategies:
-  - **RecursiveTokenChunker**: Hierarchical splitting with custom separators
-  - **FixedTokenChunker**: Precise length-based chunking
-- Semantic strategies:
-  - **LLMSemanticChunker**: Natural language break points using LLMs
-  - **ClusterSemanticChunker**: Content-aware semantic grouping
-  - **KamradtModifiedChunker**: Hybrid semantic-token approach
-
-*Chunking techniques adapted from [ChromaDB's Chunking Research](https://research.trychroma.com/evaluating-chunking)*
+Implement state-of-the-art chunking strategies based on [ChromaDB's research](https://research.trychroma.com/evaluating-chunking):
+- **Semantic Approaches**: 
+  - LLM-guided splits for natural language breakpoints
+  - Content-aware clustering for thematic coherence
+  - Hybrid semantic-token methods for balanced chunking
+- **Token/Character-Based Methods**:
+  - Recursive chunking with custom separator hierarchies
+  - Precise length-based splitting
 
 ### Training Data Generation
-- LLM-powered question generation
-- Cloud and local model support via [LiteLLM](https://docs.litellm.ai/docs/)
-- Semantic deduplication
-- Parallel processing
+Automatically create domain-specific training datasets:
+- Generate synthetic question-answer pairs from your content
+- Intelligent deduplication using semantic similarity
+- Parallel processing for large-scale document sets
+- Support for local and cloud LLMs via [LiteLLM](https://docs.litellm.ai/docs/)
 
 ### Embedding Optimization
-- Fine-tuned retrieval models with [Sentence Transformers](https://sbert.net/)
-- Matryoshka dimension reduction
-- Comprehensive evaluation metrics
+Fine-tune embedding models for your specific domain:
+- Custom training using [Sentence Transformers](https://sbert.net/)
+- Dimension reduction techniques with Matryoshka Representation Learning
+- Comprehensive evaluation across multiple metrics
+- Detailed performance comparisons with baseline models
 
 ## Installation
 
@@ -271,7 +273,7 @@ For more details on setting up local models and supported providers, refer to th
 ## Environment Variables
 
 - `<PROVIDER>_API_KEY`: Required for LLM embeddings, question generation, and chunking
-- `HF_TOKEN`: Required for Hugging Face Hub uploads
+- `HF_TOKEN`: Required for Hugging Face Hub uploads and downloads
 
 ## Citations
 
