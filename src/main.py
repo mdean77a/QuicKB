@@ -8,6 +8,7 @@ from typing import List, Dict, Optional, Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, field_validator
+from datasets import load_dataset, Dataset
 
 from chunking import ChunkerRegistry
 from hub_upload.dataset_pusher import DatasetPusher
@@ -37,6 +38,14 @@ class LiteLLMConfig(BaseModel):
     model_api_base: Optional[str] = None
     embedding_model: str = "openai/text-embedding-3-large"
     embedding_api_base: Optional[str] = None
+
+class InputDatasetConfig(BaseModel):
+    """Configuration for input dataset source."""
+    model_config = ConfigDict(extra='forbid')
+
+    dataset_source: str = "local" # Options: "local", "hub"
+    hub_dataset_id: Optional[str] = None
+    local_dataset_path: Optional[str] = None
 
 class UploadConfig(BaseModel):
     """Configuration for Hugging Face Hub uploads."""
@@ -68,6 +77,7 @@ class QuestionGeneratorConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
     
     output_path: str
+    input_dataset_config: InputDatasetConfig
     litellm_config: LiteLLMConfig
     max_workers: int = 20
     deduplication_enabled: bool = True
@@ -131,6 +141,7 @@ class TrainingConfig(BaseModel):
     model_settings: ModelSettings
     training_arguments: TrainingArguments
     upload_config: Optional[UploadConfig] = None
+    train_dataset_config: InputDatasetConfig
 
 class PipelineConfig(BaseModel):
     """Main configuration for the QuicKB pipeline."""
@@ -143,6 +154,30 @@ class PipelineConfig(BaseModel):
     chunker_config: ChunkerConfig
     question_generation: Optional[QuestionGeneratorConfig] = None
     training: Optional[TrainingConfig] = None
+
+def load_dataset_from_local(file_path: str) -> List[Dict[str, Any]]:
+    """Load dataset from a local JSON file."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            raise ValueError(f"Expected JSON array in {file_path}")
+        return data
+    except FileNotFoundError:
+        logger.error(f"Dataset file not found: {file_path}")
+        raise
+    except json.JSONDecodeError:
+        logger.error(f"Error decoding JSON in {file_path}")
+        raise
+
+def load_dataset_from_hub(hub_dataset_id: str, config_name: str) -> List[Dict[str, Any]]:
+    """Load dataset from Hugging Face Hub."""
+    try:
+        dataset = load_dataset(hub_dataset_id, config_name, split="train")
+        return dataset.to_list() # Convert HF Dataset to list of dicts for compatibility
+    except Exception as e:
+        logger.error(f"Error loading dataset from Hugging Face Hub: {hub_dataset_id}, config: {config_name}. Error: {e}")
+        raise
 
 def load_pipeline_config(config_path: str | Path = "config.yaml") -> PipelineConfig:
     """Load and validate pipeline configuration."""
@@ -244,11 +279,11 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     return results
 
 def generate_questions(
-    config: PipelineConfig, 
+    config: PipelineConfig,
     kb_dataset: List[Dict[str, Any]]
 ) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
     """Generate questions and optionally upload to Hub."""
-    
+
     if not config.question_generation:
         raise ValueError("Question generation config is required but not provided")
     
@@ -379,7 +414,7 @@ def generate_questions(
 
 def train_model(config: PipelineConfig, kb_dataset: List[Dict[str, Any]], train_dataset: List[Dict[str, Any]]):
     """Train the embedding model."""
-    train_main(config)
+    train_main(config, train_dataset=train_dataset, kb_dataset=kb_dataset)
 
 def upload_to_hub(
     config: PipelineConfig,
@@ -444,29 +479,37 @@ def run_pipeline(config: PipelineConfig):
         kb_dataset = process_chunks(config)
     else:
         logger.info("Skipping CHUNK stage. Loading existing chunks.")
-        with open(config.chunker_config.output_path, "r", encoding="utf-8") as f:
-            kb_dataset = json.load(f)
+        # Load chunks based on question_generation.input_dataset_config
+        if config.question_generation and config.question_generation.input_dataset_config.dataset_source == "hub":
+            logger.info(f"Loading knowledgebase dataset from Hub: {config.question_generation.input_dataset_config.hub_dataset_id}")
+            kb_dataset = load_dataset_from_hub(config.question_generation.input_dataset_config.hub_dataset_id, "knowledgebase")
+        else: # Default to local chunker output path if not hub or explicitly local
+             kb_dataset = load_dataset_from_local(config.chunker_config.output_path)
 
     # 2. GENERATE
     train_dataset = None
     question_metrics = None
     if from_stage.value <= PipelineStage.GENERATE.value <= to_stage.value:
         logger.info("Running GENERATE stage.")
-        train_dataset, question_metrics = generate_questions(config, kb_dataset)
+        # Pass kb_dataset directly (already loaded)
+        train_dataset, question_metrics = generate_questions(config, kb_dataset) # No change here, just using kb_dataset argument
     else:
         logger.info("Skipping GENERATE stage.")
-        # If we skip generate, we can load from disk if we need it for TRAIN
-        if (to_stage.value >= PipelineStage.TRAIN.value and 
-            config.question_generation and 
-            config.question_generation.output_path):
-            with open(config.question_generation.output_path, "r", encoding="utf-8") as f:
-                train_dataset = json.load(f)
+        # Load train dataset based on training.train_dataset_config if needed for TRAIN stage
+        if (to_stage.value >= PipelineStage.TRAIN.value and
+            config.training and config.training.train_dataset_config.dataset_source == "hub"):
+            logger.info(f"Loading training dataset from Hub: {config.training.train_dataset_config.hub_dataset_id}")
+            train_dataset = load_dataset_from_hub(config.training.train_dataset_config.hub_dataset_id, "train")
+        elif (to_stage.value >= PipelineStage.TRAIN.value and
+              config.question_generation and config.question_generation.output_path): # Fallback to local if no hub config
+            train_dataset = load_dataset_from_local(config.question_generation.output_path)
 
     # 3. TRAIN
     if from_stage.value <= PipelineStage.TRAIN.value <= to_stage.value:
         logger.info("Running TRAIN stage.")
         if not config.training:
             raise ValueError("No training config found, cannot run TRAIN stage.")
+        # Pass train_dataset directly (already loaded)
         train_model(config, kb_dataset, train_dataset)
     else:
         logger.info("Skipping TRAIN stage.")

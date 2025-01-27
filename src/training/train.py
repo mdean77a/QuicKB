@@ -4,8 +4,8 @@ import logging
 import torch
 import yaml
 from pathlib import Path
-from typing import Dict, List
-from datasets import load_dataset
+from typing import Dict, List, Any
+from datasets import load_dataset, Dataset
 from sentence_transformers import (
     SentenceTransformer,
     SentenceTransformerModelCardData,
@@ -199,36 +199,13 @@ def save_metrics_to_file(before: dict, after: dict, dim_list: list, path="metric
         write_table(f, "Absolute Changes (Δ)", headers, delta_rows, num_formatter)
         write_table(f, "Percentage Changes", headers, pct_change_rows, num_formatter)
 
-def main(config):
+def main(config, train_dataset: List[Dict[str, Any]], kb_dataset: List[Dict[str, Any]]):
     """Main training function."""
     if not hasattr(config, 'training') or not config.training:
         raise ValueError("Training configuration is required but not provided")
 
-    # Get paths from config
-    kb_path = config.chunker_config.output_path
-    train_path = config.question_generation.output_path if config.question_generation else None
-
-    # Verify files exist
-    if not os.path.exists(kb_path):
-        raise FileNotFoundError(f"Knowledgebase file not found: {kb_path}")
-    if train_path and not os.path.exists(train_path):
-        raise FileNotFoundError(f"Training data file not found: {train_path}")
-
-    # Load knowledge base data
-    with open(kb_path, "r", encoding="utf-8") as f:
-        kb_data = json.load(f)
-
-    # Load and prepare training dataset
-    train_dataset_full = load_dataset("json", data_files=train_path, split="train")
-    if "id" not in train_dataset_full.column_names:
-        train_dataset_full = train_dataset_full.add_column("id", list(range(len(train_dataset_full))))
-    if "chunk_id" in train_dataset_full.column_names:
-        train_dataset_full = train_dataset_full.rename_column("chunk_id", "global_chunk_id")
-    train_dataset_full = train_dataset_full.shuffle()
-    dataset_split = train_dataset_full.train_test_split(test_size=0.1)
-    train_dataset = dataset_split["train"]
-    test_dataset = dataset_split["test"]
-    logger.info(f"Train size: {len(train_dataset)} | Test size: {len(test_dataset)}")
+    kb_data = kb_dataset # Modified - Use kb_dataset argument
+    train_dataset_full = Dataset.from_list(train_dataset)
 
     # Build evaluation structures
     corpus, queries, relevant_docs = build_evaluation_structures(

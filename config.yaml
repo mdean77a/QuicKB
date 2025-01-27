@@ -25,7 +25,7 @@ chunker_config:
     length_type: "character"
   
   upload_config:
-    push_to_hub: true
+    push_to_hub: false
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb"
 
@@ -39,11 +39,16 @@ question_generation:
     model_api_base: null
     embedding_model: "text-embedding-3-large"
     embedding_api_base: null
+
+  input_dataset_config:
+    dataset_source: "local" # Options: "local", "hub" - Default to local
+    hub_dataset_id: null      
+    local_dataset_path: null  
   
   # API Limits
-  max_workers: 20
-  llm_calls_per_minute: 256 
-  embedding_calls_per_minute: 15
+  max_workers: 100
+  llm_calls_per_minute: null 
+  embedding_calls_per_minute: null
 
   # Deduplication Config
   deduplication_enabled: true
@@ -51,7 +56,7 @@ question_generation:
   similarity_threshold: 0.85
 
   upload_config:
-    push_to_hub: true
+    push_to_hub: false
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb"
 
@@ -64,6 +69,11 @@ training:
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
     max_seq_length: 1024
     trust_remote_code: false
+
+  train_dataset_config:
+    dataset_source: "local" # Options: "local", "hub" - Default to local
+    hub_dataset_id: null      # Required if dataset_source: "hub" - Leave null for local
+    local_dataset_path: null  # Required if dataset_source: "local" - Can leave null to default
   
   # Trainer Arguments
   training_arguments:
@@ -86,6 +96,6 @@ training:
     report_to: "none"
     
   upload_config:
-    push_to_hub: true
+    push_to_hub: false
     hub_private: false
     hub_model_id: "AdamLucek/modernbert-embed-quickb"
