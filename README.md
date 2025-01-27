@@ -29,7 +29,7 @@ QuicKB optimizes document retrieval by creating fine-tuned knowledge bases throu
 
 ### Embedding Optimization
 - Fine-tuned retrieval models with [Sentence Transformers](https://sbert.net/)
-- Matryoshka dimension reduction (768→64D)
+- Matryoshka dimension reduction
 - Comprehensive evaluation metrics
 
 ## Installation
