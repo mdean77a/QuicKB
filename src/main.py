@@ -173,7 +173,11 @@ def load_dataset_from_local(file_path: str) -> List[Dict[str, Any]]:
 def load_dataset_from_hub(hub_dataset_id: str, config_name: str) -> List[Dict[str, Any]]:
     """Load dataset from Hugging Face Hub."""
     try:
-        dataset = load_dataset(hub_dataset_id, config_name, split="train")
+        try:
+            dataset = load_dataset(hub_dataset_id, config_name, split="train") # Try loading 'train' split first
+        except ValueError:
+            dataset = load_dataset(hub_dataset_id, config_name, split="knowledgebase") # Fallback to 'knowledgebase'
+
         return dataset.to_list() # Convert HF Dataset to list of dicts for compatibility
     except Exception as e:
         logger.error(f"Error loading dataset from Hugging Face Hub: {hub_dataset_id}, config: {config_name}. Error: {e}")

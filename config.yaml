@@ -25,9 +25,9 @@ chunker_config:
     length_type: "character"
   
   upload_config:
-    push_to_hub: false
+    push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb"
+    hub_dataset_id: "AdamLucek/quickb-hubtest"
 
 # Question Generation
 question_generation:
@@ -42,7 +42,7 @@ question_generation:
 
   input_dataset_config:
     dataset_source: "hub" # Options: "local", "hub" - Default to local
-    hub_dataset_id: "AdamLucek/quickb-v1.0"      
+    hub_dataset_id: "AdamLucek/quickb-hubtest"
     local_dataset_path: null  
   
   # API Limits
@@ -56,9 +56,9 @@ question_generation:
   similarity_threshold: 0.85
 
   upload_config:
-    push_to_hub: false
+    push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-v1.0"
+    hub_dataset_id: "AdamLucek/quickb-hubtest"
 
 # Training config
 training:
