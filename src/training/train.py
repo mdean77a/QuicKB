@@ -211,7 +211,7 @@ def main(config):
 
     # Initialize base model and run baseline evaluation
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    base_model = SentenceTransformer(config.training.model_settings.model_id, device=device)
+    base_model = SentenceTransformer(config.training.model_settings.model_id, device=device, trust_remote_code=config.training.model_settings.trust_remote_code)
     base_model.max_seq_length = config.training.model_settings.max_seq_length
     baseline_results = run_baseline_eval(base_model, evaluator, dim_list)
 
@@ -219,6 +219,7 @@ def main(config):
     model = SentenceTransformer(
         config.training.model_settings.model_id,
         device=device,
+        trust_remote_code=config.training.model_settings.trust_remote_code,
         model_kwargs={"attn_implementation": "sdpa"},
         model_card_data=SentenceTransformerModelCardData(
             language="en",
@@ -274,7 +275,7 @@ def main(config):
     trainer.save_model()
     
     # Evaluate fine-tuned model
-    fine_tuned_model = SentenceTransformer(config.training.training_arguments.output_path, device=device)
+    fine_tuned_model = SentenceTransformer(config.training.training_arguments.output_path, device=device, trust_remote_code=config.training.model_settings.trust_remote_code)
     fine_tuned_model.max_seq_length = config.training.model_settings.max_seq_length
     final_results = run_final_eval(fine_tuned_model, evaluator, dim_list)
 

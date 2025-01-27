@@ -113,6 +113,7 @@ training:
     matryoshka_dimensions: [768, 512, 256, 128, 64]
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
     max_seq_length: 1024
+    trust_remote_code: true
   
   training_arguments:
     output_path: "./output/modernbert_quickb"
