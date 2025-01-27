@@ -44,58 +44,61 @@ def build_evaluation_structures(kb_dataset, test_dataset, kb_id_field="id", kb_t
         relevant_docs[q_id].append(row["global_chunk_id"])
     return corpus, queries, relevant_docs
 
-def run_baseline_eval(model, evaluator, dim_list):
-    results = evaluator(model)
-    print("\nBefore Training (Baseline) Results")
-    print("-" * 85)
-    print(f"{'Metric':15} {' '.join([f'{d:>10}d' for d in dim_list])}")
-    print("-" * 85)
-    metrics = [
-        "ndcg@10", "mrr@10", "map@100",
-        "accuracy@1", "accuracy@3", "accuracy@5", "accuracy@10",
-        "precision@1", "precision@3", "precision@5", "precision@10",
-        "recall@1", "recall@3", "recall@5", "recall@10",
+def format_evaluation_results(title: str, results: dict, dim_list: list, metrics: list = None):
+    if metrics is None:
+        metrics = [
+            "ndcg@10", "mrr@10", "map@100",
+            "accuracy@1", "accuracy@3", "accuracy@5", "accuracy@10",
+            "precision@1", "precision@3", "precision@5", "precision@10",
+            "recall@1", "recall@3", "recall@5", "recall@10",
+        ]
+
+    # Calculate required widths for alignment
+    max_dim_length = max(len(str(dim)) for dim in dim_list)
+    value_format_length = 5  # '0.000' is 5 characters
+    column_width = max(max_dim_length, value_format_length)
+    metric_width = max(len(metric) for metric in metrics) if metrics else 10
+
+    # Prepare dimension headers (left-aligned strings)
+    dim_header = "  ".join(f"{str(dim):<{column_width}}" for dim in dim_list)
+    
+    # Create header line and dynamically determine separator length
+    header_line = f"{'Metric':{metric_width}}  {dim_header}"
+    separator = "-" * len(header_line)
+
+    output = [
+        f"\n{title}",
+        separator,
+        header_line,
+        separator
     ]
+
+    # Populate each metric row (values right-aligned)
     for metric in metrics:
-        row_values = []
+        values = []
         for dim in dim_list:
             key = f"dim_{dim}_cosine_{metric}"
-            val = results[key]
-            row_values.append(val)
-        print(f"{metric:15}", end="  ")
-        for val in row_values:
-            print(f"{val:10.4f}", end=" ")
-        print()
-    print("-" * 85)
-    print(f"sequential_score: {results['sequential_score']:.4f}\n")
+            val = results.get(key, 0.0)
+            values.append(f"{val:>{column_width}.3f}")  # Right-align values
+        metric_line = f"{metric:{metric_width}}  {'  '.join(values)}"
+        output.append(metric_line)
+    
+    # Final row
+    output.append(separator)
+    
+    return "\n".join(output)
+
+def run_baseline_eval(model, evaluator, dim_list):
+    results = evaluator(model)
+    print(format_evaluation_results("Before Training (Baseline) Results", results, dim_list))
     return results
 
 def run_final_eval(model, evaluator, dim_list):
     results = evaluator(model)
-    print("\nAfter Training (Fine-Tuned) Results")
-    print("-" * 85)
-    print(f"{'Metric':15} {' '.join([f'{d:>10}d' for d in dim_list])}")
-    print("-" * 85)
-    metrics = [
-        "ndcg@10", "mrr@10", "map@100",
-        "accuracy@1", "accuracy@3", "accuracy@5", "accuracy@10",
-        "precision@1", "precision@3", "precision@5", "precision@10",
-        "recall@1", "recall@3", "recall@5", "recall@10",
-    ]
-    for metric in metrics:
-        row_values = []
-        for dim in dim_list:
-            key = f"dim_{dim}_cosine_{metric}"
-            row_values.append(results[key])
-        print(f"{metric:15}", end="  ")
-        for val in row_values:
-            print(f"{val:10.4f}", end=" ")
-        print()
-    print("-" * 85)
-    print(f"sequential_score: {results['sequential_score']:.4f}\n")
+    print(format_evaluation_results("After Training (Fine-Tuned) Results", results, dim_list))
     return results
 
-def save_metrics_to_file(before: Dict, after: Dict, dim_list: List[int], path="metrics_comparison.txt"):
+def save_metrics_to_file(before: dict, after: dict, dim_list: list, path="metrics_comparison.txt"):
     metrics = [
         "ndcg@10", "mrr@10", "map@100",
         "accuracy@1", "accuracy@3", "accuracy@5", "accuracy@10",
@@ -103,56 +106,57 @@ def save_metrics_to_file(before: Dict, after: Dict, dim_list: List[int], path="m
         "recall@1", "recall@3", "recall@5", "recall@10",
     ]
     
-    # Calculate maximum width needed for metrics
-    max_metric_width = max(len(metric) for metric in metrics)
-    dim_width = 8  # Width for each dimension's values
-    
     with open(path, "w", encoding="utf-8") as f:
-        # Write title
         title = "Model Performance Metrics Comparison"
         f.write(f"\n{title}\n")
         f.write("=" * len(title) + "\n\n")
         
-        # Create dimension headers
-        dims_section = "".join(f"{dim:>{dim_width}d}" for dim in dim_list)
-        header = f"{'Metric':<{max_metric_width}} │ {'Before':>{len(dims_section)}} │ {'After':>{len(dims_section)}} │ {'Δ':>{len(dims_section)}}\n"
-        subheader = f"{' ' * max_metric_width} │ {dims_section} │ {dims_section} │ {dims_section}\n"
+        # Calculate column widths
+        dim_strs = [f"{dim:,}" for dim in dim_list]  # Format with thousands separators
+        dim_width = max(len(d) for d in dim_strs)
+        dim_header = "Dimension"
+        dim_width = max(dim_width, len(dim_header))
         
-        # Write headers
-        f.write(header)
-        f.write(subheader)
-        f.write("─" * max_metric_width + "─┼─" + "─" * len(dims_section) + "─┼─" + "─" * len(dims_section) + "─┼─" + "─" * len(dims_section) + "\n")
-        
-        # Write metric rows
+        num_width = 8  # Width for before/after/delta columns
+        headers = ["Before", "After", "Δ"]
+        header_width = max(len(h) for h in headers)
+        num_width = max(num_width, header_width + 1)  # +1 for negative sign space
+
         for metric in metrics:
-            before_vals = []
-            after_vals = []
-            diff_vals = []
+            # Metric header
+            f.write(f"{metric}\n")
+            f.write("-" * len(metric) + "\n")
             
+            # Table header
+            header = (f"{dim_header:>{dim_width}} │ "
+                      f"{headers[0]:>{num_width}} │ "
+                      f"{headers[1]:>{num_width}} │ "
+                      f"{headers[2]:>{num_width}}")
+            separator = ("─" * dim_width + "─┼─" +
+                         "─" * num_width + "─┼─" +
+                         "─" * num_width + "─┼─" +
+                         "─" * num_width)
+            f.write(f"{header}\n{separator}\n")
+            
+            # Dimension rows
             for dim in dim_list:
                 key = f"dim_{dim}_cosine_{metric}"
-                val_before = before[key]
-                val_after = after[key]
-                diff = val_after - val_before if val_before != 0 else 0
+                try:
+                    b_val = before.get(key, 0.0)
+                    a_val = after.get(key, 0.0)
+                    delta = a_val - b_val
+                except KeyError:
+                    b_val = a_val = delta = 0.0
                 
-                before_vals.append(f"{val_before:{dim_width}.3f}")
-                after_vals.append(f"{val_after:{dim_width}.3f}")
-                diff_vals.append(f"{diff:{dim_width}.3f}")
+                # Format dimension with thousands separators
+                formatted_dim = f"{dim:,}"
+                row = (f"{formatted_dim:>{dim_width}} │ "
+                       f"{b_val:>{num_width}.3f} │ "
+                       f"{a_val:>{num_width}.3f} │ "
+                       f"{delta:>{num_width}.3f}")
+                f.write(f"{row}\n")
             
-            f.write(f"{metric:<{max_metric_width}} │ {''.join(before_vals)} │ {''.join(after_vals)} │ {''.join(diff_vals)}\n")
-        
-        # Write footer with sequential scores
-        f.write("─" * max_metric_width + "─┴─" + "─" * len(dims_section) + "─┴─" + "─" * len(dims_section) + "─┴─" + "─" * len(dims_section) + "\n\n")
-        
-        # Add sequential scores
-        sb = before["sequential_score"]
-        sa = after["sequential_score"]
-        ds = sa - sb
-        f.write("Sequential Scores\n")
-        f.write("----------------\n")
-        f.write(f"Before: {sb:.3f}\n")
-        f.write(f"After:  {sa:.3f}\n")
-        f.write(f"Δ:      {ds:+.3f}\n")
+            f.write("\n")  # Space between metrics
 
 def main(config):
     """Main training function."""
