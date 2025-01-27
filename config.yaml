@@ -1,7 +1,7 @@
 # Pipeline Stage Control
 pipeline:
-  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN
-  to_stage: "TRAIN"
+  from_stage: "GENERATE"    # Options: CHUNK, GENERATE, TRAIN
+  to_stage: "GENERATE"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -41,8 +41,8 @@ question_generation:
     embedding_api_base: null
 
   input_dataset_config:
-    dataset_source: "local" # Options: "local", "hub" - Default to local
-    hub_dataset_id: null      
+    dataset_source: "hub" # Options: "local", "hub" - Default to local
+    hub_dataset_id: "AdamLucek/quickb-v1.0"      
     local_dataset_path: null  
   
   # API Limits
@@ -52,13 +52,13 @@ question_generation:
 
   # Deduplication Config
   deduplication_enabled: true
-  dedup_embedding_batch_size: 512
+  dedup_embedding_batch_size: 2048
   similarity_threshold: 0.85
 
   upload_config:
     push_to_hub: false
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb"
+    hub_dataset_id: "AdamLucek/quickb-v1.0"
 
 # Training config
 training:

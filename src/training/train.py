@@ -207,6 +207,16 @@ def main(config, train_dataset: List[Dict[str, Any]], kb_dataset: List[Dict[str,
     kb_data = kb_dataset # Modified - Use kb_dataset argument
     train_dataset_full = Dataset.from_list(train_dataset)
 
+    if "id" not in train_dataset_full.column_names:
+        train_dataset_full = train_dataset_full.add_column("id", list(range(len(train_dataset_full))))
+    if "chunk_id" in train_dataset_full.column_names:
+        train_dataset_full = train_dataset_full.rename_column("chunk_id", "global_chunk_id")
+    train_dataset_full = train_dataset_full.shuffle()
+    dataset_split = train_dataset_full.train_test_split(test_size=0.1)
+    train_dataset = dataset_split["train"]
+    test_dataset = dataset_split["test"]
+    logger.info(f"Train size: {len(train_dataset)} | Test size: {len(test_dataset)}")
+
     # Build evaluation structures
     corpus, queries, relevant_docs = build_evaluation_structures(
         kb_dataset=kb_data,
