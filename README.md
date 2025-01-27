@@ -297,6 +297,7 @@ Todo List:
 
 - pydantic v2 fields warning
 - Custom Model Card (Using base from SBERT currently)
+- Load Hugging Face compatible datasets for intermediate stages
 - CPU training support
 
 ## License
