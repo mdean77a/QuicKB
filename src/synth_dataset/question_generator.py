@@ -7,6 +7,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from .deduplicator import QuestionDeduplicator
+from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
@@ -23,7 +24,9 @@ class QuestionGenerator:
         max_workers: int = 20,
         model_api_base: str = None,
         embedding_api_base: str = None,
-        embedding_batch_size: int = 500
+        embedding_batch_size: int = 500,
+        llm_calls_per_minute: int = 15,
+        embedding_calls_per_minute: int = 15
     ):
         self.api_key = api_key
         self.llm_model = llm_model
@@ -36,6 +39,10 @@ class QuestionGenerator:
         self.model_api_base = model_api_base
         self.embedding_api_base = embedding_api_base
         self.embedding_batch_size = embedding_batch_size
+        
+        # Initialize rate limiters
+        self.llm_rate_limiter = RateLimiter(llm_calls_per_minute, name="LLM") if llm_calls_per_minute is not None else None
+        self.embedding_rate_limiter = RateLimiter(embedding_calls_per_minute, name="Embedding") if embedding_calls_per_minute is not None else None
 
     def _load_prompt(self, path: str) -> str:
         with open(path, 'r') as f:
@@ -43,7 +50,11 @@ class QuestionGenerator:
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def _generate(self, chunk: str) -> str:
-        # Prepare completion kwargs
+        
+        # Wait for rate limit before making API call (if exists)
+        if self.llm_rate_limiter:
+            self.llm_rate_limiter.wait_if_needed()
+        
         completion_kwargs = {
             "model": self.llm_model,
             "messages": [
@@ -54,7 +65,6 @@ class QuestionGenerator:
             "api_key": self.api_key
         }
         
-        # Add model_api_base if provided
         if self.model_api_base:
             completion_kwargs["api_base"] = self.model_api_base
             
@@ -62,6 +72,7 @@ class QuestionGenerator:
         return response.choices[0].message.content
 
     def generate_for_chunk(self, chunk: str) -> List[Dict]:
+        """Generate questions for a single chunk."""
         if chunk in self._question_cache:
             return self._question_cache[chunk]
 
@@ -109,18 +120,20 @@ class QuestionGenerator:
                         pbar.update(1)
         
         if self.dedup_enabled and self.deduplicator and results:
-            # Get embeddings using LiteLLM
             questions_text = [q["question"] for q in results]
             
-            # Process in batches (adjust based on API limits)
             BATCH_SIZE = self.embedding_batch_size
             all_embeddings = []
             
-            num_batches = (len(questions_text) + BATCH_SIZE - 1) // BATCH_SIZE  # Calculate total batches
+            num_batches = (len(questions_text) + BATCH_SIZE - 1) // BATCH_SIZE
             
             with tqdm(total=num_batches, desc="Generating embeddings") as pbar:
                 for i in range(0, len(questions_text), BATCH_SIZE):
                     batch = questions_text[i:i + BATCH_SIZE]
+                    
+                    # Wait for rate limit before making embedding API call (if needed)
+                    if self.embedding_rate_limiter:
+                        self.embedding_rate_limiter.wait_if_needed()
                     
                     embedding_kwargs = {
                         "model": self.embedding_model,
@@ -141,7 +154,6 @@ class QuestionGenerator:
                     
                     pbar.update(1)
             
-            # Use all collected embeddings for deduplication
             results = self.deduplicator.deduplicate(results, all_embeddings)
         
         return results

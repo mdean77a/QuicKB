@@ -10,9 +10,11 @@ path_to_knowledgebase: "./testing/knowledgebase"
 hub_username: "AdamLucek"
 hub_token: null  # or rely on HF_TOKEN environment variable
 
-# Chunking config with upload options
+# Chunking Config
 chunker_config:
   output_path: "./output/knowledgebase-quickb.json"
+  
+  # Chunker Arguments
   chunker: "RecursiveTokenChunker"
   chunker_arguments:
     chunk_size: 400
@@ -21,7 +23,7 @@ chunker_config:
     keep_separator: true
     is_separator_regex: false
     length_type: "character"
-
+  
   upload_config:
     push_to_hub: true
     hub_private: false
@@ -30,14 +32,22 @@ chunker_config:
 # Question Generation
 question_generation:
   output_path: "./output/train_data.json"
+  
+  # LLM & Embedding Model Config
   litellm_config:
     model: "openai/gpt-4o-mini"
     model_api_base: null
     embedding_model: "text-embedding-3-large"
     embedding_api_base: null
-  max_workers: 100
+  
+  # API Limits
+  max_workers: 20
+  llm_calls_per_minute: 256 
+  embedding_calls_per_minute: 15
+
+  # Deduplication Config
   deduplication_enabled: true
-  dedup_embedding_batch_size: 2048
+  dedup_embedding_batch_size: 512
   similarity_threshold: 0.85
 
   upload_config:
@@ -47,13 +57,15 @@ question_generation:
 
 # Training config
 training:
+  # Main Model Selection & MRL Loss Setup
   model_settings:
     model_id: "nomic-ai/modernbert-embed-base"
     matryoshka_dimensions: [768, 512, 256, 128, 64]
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
     max_seq_length: 1024
-    trust_remote_code: true
+    trust_remote_code: false
   
+  # Trainer Arguments
   training_arguments:
     output_path: "./output/modernbert_quickb"
     epochs: 4

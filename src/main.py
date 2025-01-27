@@ -74,6 +74,8 @@ class QuestionGeneratorConfig(BaseModel):
     dedup_embedding_batch_size: int = 500
     similarity_threshold: float = 0.85
     upload_config: Optional[UploadConfig] = None
+    llm_calls_per_minute: Optional[int] = 15
+    embedding_calls_per_minute: Optional[int] = 15
 
 class ModelSettings(BaseModel):
     """Settings for the embedding model training."""
@@ -259,7 +261,9 @@ def generate_questions(
         max_workers=config.question_generation.max_workers,
         model_api_base=config.question_generation.litellm_config.model_api_base,
         embedding_api_base=config.question_generation.litellm_config.embedding_api_base,
-        embedding_batch_size=config.question_generation.dedup_embedding_batch_size
+        embedding_batch_size=config.question_generation.dedup_embedding_batch_size,
+        llm_calls_per_minute=config.question_generation.llm_calls_per_minute,
+        embedding_calls_per_minute=config.question_generation.embedding_calls_per_minute
     )
     
     # Get unique texts and build a text-to-id mapping
