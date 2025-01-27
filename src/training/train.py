@@ -105,58 +105,99 @@ def save_metrics_to_file(before: dict, after: dict, dim_list: list, path="metric
         "precision@1", "precision@3", "precision@5", "precision@10",
         "recall@1", "recall@3", "recall@5", "recall@10",
     ]
-    
-    with open(path, "w", encoding="utf-8") as f:
-        title = "Model Performance Metrics Comparison"
-        f.write(f"\n{title}\n")
-        f.write("=" * len(title) + "\n\n")
-        
-        # Calculate column widths
-        dim_strs = [f"{dim:,}" for dim in dim_list]  # Format with thousands separators
-        dim_width = max(len(d) for d in dim_strs)
-        dim_header = "Dimension"
-        dim_width = max(dim_width, len(dim_header))
-        
-        num_width = 8  # Width for before/after/delta columns
-        headers = ["Before", "After", "Δ"]
-        header_width = max(len(h) for h in headers)
-        num_width = max(num_width, header_width + 1)  # +1 for negative sign space
 
+    def format_dimensions(dim_list):
+        return [f"{dim:,}" for dim in dim_list]
+
+    def write_table(f, title, headers, rows, value_formatter):
+        # Calculate column widths
+        is_percentage = "%" in rows[0][1]
+        
+        # For metric column
+        metric_width = max(len(row[0]) for row in rows)
+        metric_width = max(metric_width, len(headers[0]))
+        
+        # For value columns, ensure we account for the maximum width including +/- and %
+        dim_widths = []
+        for col_idx in range(1, len(headers)):
+            col_values = [row[col_idx] for row in rows]
+            max_width = max(len(str(val)) for val in col_values)
+            header_width = len(headers[col_idx])
+            dim_widths.append(max(max_width, header_width))
+        
+        col_widths = [metric_width] + dim_widths
+        
+        # Build header with consistent spacing
+        header = headers[0].ljust(col_widths[0])
+        for i, h in enumerate(headers[1:], 1):
+            header += " │ " + h.center(col_widths[i])
+        
+        # Build separator
+        separator = "─" * col_widths[0]
+        for w in col_widths[1:]:
+            separator += "─┼─" + "─" * w
+            
+        # Write table
+        f.write(f"\n{title}\n")
+        f.write("-" * len(title) + "\n")
+        f.write(f"{header}\n{separator}\n")
+        
+        # Write rows with consistent spacing
+        for row in rows:
+            line = row[0].ljust(col_widths[0])
+            for i, val in enumerate(row[1:], 1):
+                if is_percentage:
+                    # Right-align percentage values
+                    line += " │ " + val.rjust(col_widths[i])
+                else:
+                    line += " │ " + value_formatter(val, col_widths[i])
+            f.write(line + "\n")
+
+    with open(path, "w", encoding="utf-8") as f:
+        # Main title
+        f.write("Model Performance Metrics Comparison\n")
+        f.write("====================================\n")
+        
+        # Format dimensions with thousands separators
+        dim_strs = format_dimensions(dim_list)
+        
+        # Prepare data tables
+        baseline_rows = []
+        finetuned_rows = []
+        delta_rows = []
+        pct_change_rows = []
+        
         for metric in metrics:
-            # Metric header
-            f.write(f"{metric}\n")
-            f.write("-" * len(metric) + "\n")
+            bl_vals = []
+            ft_vals = []
+            dt_vals = []
+            pc_vals = []
             
-            # Table header
-            header = (f"{dim_header:>{dim_width}} │ "
-                      f"{headers[0]:>{num_width}} │ "
-                      f"{headers[1]:>{num_width}} │ "
-                      f"{headers[2]:>{num_width}}")
-            separator = ("─" * dim_width + "─┼─" +
-                         "─" * num_width + "─┼─" +
-                         "─" * num_width + "─┼─" +
-                         "─" * num_width)
-            f.write(f"{header}\n{separator}\n")
-            
-            # Dimension rows
             for dim in dim_list:
                 key = f"dim_{dim}_cosine_{metric}"
-                try:
-                    b_val = before.get(key, 0.0)
-                    a_val = after.get(key, 0.0)
-                    delta = a_val - b_val
-                except KeyError:
-                    b_val = a_val = delta = 0.0
+                b_val = before.get(key, 0.0)
+                a_val = after.get(key, 0.0)
+                delta = a_val - b_val
+                pct_change = (delta / b_val * 100) if b_val != 0 else 0.0
                 
-                # Format dimension with thousands separators
-                formatted_dim = f"{dim:,}"
-                row = (f"{formatted_dim:>{dim_width}} │ "
-                       f"{b_val:>{num_width}.3f} │ "
-                       f"{a_val:>{num_width}.3f} │ "
-                       f"{delta:>{num_width}.3f}")
-                f.write(f"{row}\n")
+                bl_vals.append(f"{b_val:.3f}")
+                ft_vals.append(f"{a_val:.3f}")
+                dt_vals.append(f"{delta:+.3f}")
+                pc_vals.append(f"{pct_change:+.1f}%")
             
-            f.write("\n")  # Space between metrics
+            baseline_rows.append([metric] + bl_vals)
+            finetuned_rows.append([metric] + ft_vals)
+            delta_rows.append([metric] + dt_vals)
+            pct_change_rows.append([metric] + pc_vals)
+
+        # Write tables
+        headers = ["Metric"] + dim_strs
+        num_formatter = lambda val, w: f"{val:>{w}}"
+        
+        write_table(f, "Baseline Performance", headers, baseline_rows, num_formatter)
+        write_table(f, "Fine-Tuned Performance", headers, finetuned_rows, num_formatter)
+        write_table(f, "Absolute Changes (Δ)", headers, delta_rows, num_formatter)
+        write_table(f, "Percentage Changes", headers, pct_change_rows, num_formatter)
 
 def main(config):
     """Main training function."""
