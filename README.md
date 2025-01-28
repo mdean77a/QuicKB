@@ -372,6 +372,7 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 Todo List:
 
+- Cleaner handling of config arguments and validation at pipeline stages
 - pydantic v2 fields warning
 - Custom Model Card (Using base from SBERT currently)
 - CPU training support
