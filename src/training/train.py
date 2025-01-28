@@ -365,6 +365,3 @@ def main(config, train_dataset: List[Dict[str, Any]], kb_dataset: List[Dict[str,
             logger.info("Upload complete!")
 
     logger.info("Training pipeline finished.")
-
-if __name__ == "__main__":
-    main()
