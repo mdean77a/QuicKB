@@ -27,7 +27,7 @@ chunker_config:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
+    hub_dataset_id: "AdamLucek/quickb-hub-testing"
 
 # ========== Question Generation ==========
 question_generation:
@@ -42,7 +42,7 @@ question_generation:
 
   input_dataset_config:
     dataset_source: "hub" # Options: "local", "hub" - Default to local
-    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
+    hub_dataset_id: "AdamLucek/quickb-hub-testing"
     # local_knowledgebase_path: ./output/knowledgebase-quickb.json # ADD THIS LINE - Explicit path for KB
 
   # API Limits
@@ -58,7 +58,7 @@ question_generation:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
+    hub_dataset_id: "AdamLucek/quickb-hub-testing"
 
 # ========== Training config ==========
 training:
