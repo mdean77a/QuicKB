@@ -161,7 +161,7 @@ class PipelineConfig(BaseModel):
     hub_username: Optional[str] = None
     hub_token: Optional[str] = None
     path_to_knowledgebase: Optional[str]
-    chunker_config: Optional[ChunkerConfig]
+    chunker_config: Optional[ChunkerConfig] = None
     question_generation: Optional[QuestionGeneratorConfig] = None
     training: Optional[TrainingConfig] = None
 

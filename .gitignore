@@ -1,5 +1,6 @@
 .DS_Store
 quickb_venv/
+knowledgebase/
 quickb-env/
 kb_env/
 testing/
