@@ -1,7 +1,7 @@
 # Pipeline Stage Control
 pipeline:
-  from_stage: "GENERATE"    # Options: CHUNK, GENERATE, TRAIN
-  to_stage: "GENERATE"
+  from_stage: "TRAIN"    # Options: CHUNK, GENERATE, TRAIN
+  to_stage: "TRAIN"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -58,7 +58,7 @@ question_generation:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hubtest"
+    hub_dataset_id: "AdamLucek/quickb-hubtest-train"
 
 # Training config
 training:
@@ -71,8 +71,8 @@ training:
     trust_remote_code: false
 
   train_dataset_config:
-    dataset_source: "local" # Options: "local", "hub" - Default to local
-    hub_dataset_id: null      # Required if dataset_source: "hub" - Leave null for local
+    dataset_source: "hub" # Options: "local", "hub" - Default to local
+    hub_dataset_id: "AdamLucek/quickb-hubtest-train"      # Required if dataset_source: "hub" - Leave null for local
     local_dataset_path: null  # Required if dataset_source: "local" - Can leave null to default
   
   # Trainer Arguments

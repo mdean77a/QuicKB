@@ -393,14 +393,14 @@ def generate_questions(
             
             # If using same repository as chunks, include chunker info
             chunker_info = None
-            if (not config.question_generation.upload_config.hub_dataset_id or 
-                config.question_generation.upload_config.hub_dataset_id == 
+            if (not config.question_generation.upload_config.hub_dataset_id or
+                config.question_generation.upload_config.hub_dataset_id ==
                 config.chunker_config.upload_config.hub_dataset_id):
                 chunker_info = {
                     'chunker_name': config.chunker_config.chunker,
                     'chunker_params': config.chunker_config.chunker_arguments
                 }
-            
+
             # Push dataset
             pusher.push_dataset(
                 hub_dataset_id=repository_id,
@@ -477,35 +477,37 @@ def run_pipeline(config: PipelineConfig):
     from_stage = PipelineStage[config.pipeline["from_stage"]]
     to_stage = PipelineStage[config.pipeline["to_stage"]]
 
+    kb_dataset = None  # Initialize kb_dataset to None
+    train_dataset = None
+    question_metrics = None
+
     # 1. CHUNK
     if from_stage.value <= PipelineStage.CHUNK.value <= to_stage.value:
         logger.info("Running CHUNK stage.")
         kb_dataset = process_chunks(config)
     else:
         logger.info("Skipping CHUNK stage. Loading existing chunks.")
-        # Load chunks based on question_generation.input_dataset_config
+        # Load chunks based on question_generation.input_dataset_config - only if needed for later stages
         if config.question_generation and config.question_generation.input_dataset_config.dataset_source == "hub":
             logger.info(f"Loading knowledgebase dataset from Hub: {config.question_generation.input_dataset_config.hub_dataset_id}")
             kb_dataset = load_dataset_from_hub(config.question_generation.input_dataset_config.hub_dataset_id, "knowledgebase")
-        else: # Default to local chunker output path if not hub or explicitly local
-             kb_dataset = load_dataset_from_local(config.chunker_config.output_path)
+        else:  # Default to local chunker output path if not hub or explicitly local
+            kb_dataset = load_dataset_from_local(config.chunker_config.output_path)
 
     # 2. GENERATE
-    train_dataset = None
-    question_metrics = None
     if from_stage.value <= PipelineStage.GENERATE.value <= to_stage.value:
         logger.info("Running GENERATE stage.")
         # Pass kb_dataset directly (already loaded)
-        train_dataset, question_metrics = generate_questions(config, kb_dataset) # No change here, just using kb_dataset argument
+        train_dataset, question_metrics = generate_questions(config, kb_dataset)
     else:
         logger.info("Skipping GENERATE stage.")
         # Load train dataset based on training.train_dataset_config if needed for TRAIN stage
         if (to_stage.value >= PipelineStage.TRAIN.value and
-            config.training and config.training.train_dataset_config.dataset_source == "hub"):
+                config.training and config.training.train_dataset_config.dataset_source == "hub"):
             logger.info(f"Loading training dataset from Hub: {config.training.train_dataset_config.hub_dataset_id}")
             train_dataset = load_dataset_from_hub(config.training.train_dataset_config.hub_dataset_id, "train")
         elif (to_stage.value >= PipelineStage.TRAIN.value and
-              config.question_generation and config.question_generation.output_path): # Fallback to local if no hub config
+              config.question_generation and config.question_generation.output_path):  # Fallback to local if no hub config
             train_dataset = load_dataset_from_local(config.question_generation.output_path)
 
     # 3. TRAIN
