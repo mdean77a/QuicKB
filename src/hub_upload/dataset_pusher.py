@@ -33,9 +33,6 @@ class DatasetPusher:
 
     def _load_json_file(self, file_path: str) -> list:
         """Load JSON file and ensure it's a list of records."""
-        if not file_path: # Check if file_path is None or empty string
-            return None # Return None if no path provided
-
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -45,6 +42,31 @@ class DatasetPusher:
         except Exception as e:
             logger.error(f"Error loading {file_path}: {str(e)}")
             raise
+
+    def _load_existing_dataset_config(self, hub_dataset_id: str, config_name: str) -> Optional[List[Dict[str, Any]]]:
+        """Load a specific configuration from an existing dataset on the Hub."""
+        try:
+            logger.info(f"Attempting to load existing '{config_name}' configuration from Hub: {hub_dataset_id}")
+            try:
+                # Try loading 'knowledgebase' split first (prioritized)
+                dataset = load_dataset(hub_dataset_id, config_name, split="knowledgebase", token=self.token)
+            except ValueError:
+                # Fallback to 'train' split if 'knowledgebase' not found
+                dataset = load_dataset(hub_dataset_id, config_name, split="train", token=self.token)
+
+            if dataset:
+                logger.info(f"Successfully loaded existing '{config_name}' configuration.")
+                return dataset.to_list()  # Convert HF Dataset to list of dicts
+            else:
+                logger.info(f"No existing '{config_name}' configuration found on Hub.")
+                return None
+
+        except FileNotFoundError:
+            logger.info(f"No existing '{config_name}' configuration found on Hub (FileNotFound).")
+            return None
+        except Exception as e:
+            logger.error(f"Error loading existing '{config_name}' configuration from Hub: {hub_dataset_id}, config: {config_name}. Error: {e}")
+            return None
 
     def _calculate_dataset_stats(self, knowledgebase_data: List[Dict[str, Any]], chunker_info: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate statistics for dataset card."""
@@ -74,9 +96,9 @@ class DatasetPusher:
             dataset_name=repository_name,
             chunker_name=chunker_info.get('chunker_name') if chunker_info else None,
             chunker_params=chunker_info.get('chunker_params') if chunker_info else None,
-            num_chunks=stats.get('num_chunks') if stats else None, # Handle None case for stats
-            avg_chunk_size=stats.get('avg_chunk_size') if stats else None, # Handle None case for stats
-            num_files=stats.get('num_files') if stats else None, # Handle None case for stats
+            num_chunks=stats.get('num_chunks'),
+            avg_chunk_size=stats.get('avg_chunk_size'),
+            num_files=stats.get('num_files'),
             question_generation=question_gen_info
         )
 
@@ -105,11 +127,11 @@ class DatasetPusher:
             else:
                 logger.info(f"Dataset repository already exists: {hub_dataset_id}. Updating...")
 
-            # Conditionally load knowledgebase data and calculate stats
-            kb_data = self._load_json_file(knowledgebase_path) if knowledgebase_path else None
-            chunker_stats = self._calculate_dataset_stats(kb_data, chunker_info) if kb_data and chunker_info else None # Conditional stats calculation
+            # Load existing dataset configurations from Hub if they exist
+            existing_kb_data = self._load_existing_dataset_config(hub_dataset_id, "knowledgebase")
+            existing_train_data = self._load_existing_dataset_config(hub_dataset_id, "train")
 
-            train_data = self._load_json_file(train_path) if train_path else None
+            kb_data = self._load_json_file(knowledgebase_path) if knowledgebase_path else None
 
             # Get repository name from hub_dataset_id
             repository_name = hub_dataset_id.split('/')[-1]
@@ -119,7 +141,7 @@ class DatasetPusher:
                 repository_name=repository_name,
                 kb_data=kb_data,
                 chunker_info=chunker_info,
-                train_data=train_data,
+                train_data=kb_data, # Pass kb_data here temporarily to avoid errors in card generation if only train data is pushed
                 question_gen_info=question_gen_info
             )
 
@@ -134,10 +156,18 @@ class DatasetPusher:
             logger.info(f"Uploaded/Updated README.md to {hub_dataset_id}")
 
             # --- Push Configurations Conditionally ---
+            merged_kb_data = kb_data
+            merged_train_data = self._load_json_file(train_path) if train_path else None # Train data is always new in GENERATE stage
 
             # Push knowledgebase config if path is provided
             if kb_data:
-                kb_dataset = Dataset.from_list(kb_data)
+                if existing_kb_data:
+                    logger.info("Merging new knowledgebase data with existing data from Hub.")
+                    merged_kb_data = existing_kb_data + kb_data
+                else:
+                    logger.info("No existing knowledgebase data found on Hub, using new data.")
+
+                kb_dataset = Dataset.from_list(merged_kb_data)
                 kb_dataset.push_to_hub(
                     hub_dataset_id,
                     config_name="knowledgebase",
@@ -147,9 +177,15 @@ class DatasetPusher:
                 logger.info(f"{'Updated' if repo_exists_flag else 'Pushed'} knowledgebase configuration to {hub_dataset_id}")
 
             # Push train config if path is provided
-            if train_data:
-                train_dataset = Dataset.from_list(train_data)
-                train_dataset.push_to_hub(
+            if train_path:
+                if existing_train_data:
+                    logger.info("Merging new training data with existing data from Hub.")
+                    merged_train_data = existing_train_data + merged_train_data # corrected variable name
+                else:
+                    logger.info("No existing training data found on Hub, using new data.")
+
+                train_dataset = Dataset.from_list(merged_train_data)
+                train_dataset.push_to_hub( # corrected variable name
                     hub_dataset_id,
                     config_name="train",
                     token=self.token,

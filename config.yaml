@@ -27,7 +27,7 @@ chunker_config:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hub-test-final"
+    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
 
 # ========== Question Generation ==========
 question_generation:
@@ -41,9 +41,9 @@ question_generation:
     embedding_api_base: null
 
   input_dataset_config:
-    dataset_source: "local" # Options: "local", "hub" - Default to local
-    # hub_dataset_id: "AdamLucek/quickb-hubtest"
-    local_knowledgebase_path: ./output/knowledgebase.json # ADD THIS LINE - Explicit path for KB
+    dataset_source: "hub" # Options: "local", "hub" - Default to local
+    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
+    # local_knowledgebase_path: ./output/knowledgebase-quickb.json # ADD THIS LINE - Explicit path for KB
 
   # API Limits
   max_workers: 100
@@ -58,7 +58,7 @@ question_generation:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hub-test-final"
+    hub_dataset_id: "AdamLucek/quickb-hub-test-4"
 
 # ========== Training config ==========
 training:
@@ -72,9 +72,9 @@ training:
 
   train_dataset_config:
     dataset_source: "hub" # Options: "local", "hub" - Default to local
-    hub_dataset_id: "AdamLucek/quickb-hubtest-train"      # Required if dataset_source: "hub" - Leave null for local
+    hub_dataset_id: "AdamLucek/quickb-hub-test-4"      # Required if dataset_source: "hub" - Leave null for local
     local_train_dataset_path: null 
-    local_knowledgebase_path: null
+    local_knowledgebase_path: "./output/knowledgebase-quickb.json"
 
   # Trainer Arguments
   training_arguments:

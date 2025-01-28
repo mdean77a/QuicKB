@@ -405,7 +405,7 @@ def generate_questions(
             # Push dataset
             pusher.push_dataset(
                 hub_dataset_id=repository_id,
-                knowledgebase_path=config.chunker_config.output_path if chunker_info else None,
+                knowledgebase_path=None,
                 chunker_info=chunker_info,
                 train_path=config.question_generation.output_path,
                 question_gen_info=question_gen_info,
