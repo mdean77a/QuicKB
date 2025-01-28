@@ -4,7 +4,7 @@ import json
 import uuid
 from enum import Enum, auto
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -43,7 +43,7 @@ class QuestionGenInputConfig(BaseModel):
     """Configuration for question generation input dataset."""
     model_config = ConfigDict(extra='forbid', validate_default=True)
 
-    dataset_source: str = "local" # Or Hub
+    dataset_source: Literal["local", "hub"] = "local"
     knowledgebase_dataset_id: Optional[str] = None
     local_knowledgebase_path: Optional[str] = None
 
@@ -51,7 +51,7 @@ class TrainInputConfig(BaseModel):
     """Configuration for training input datasets."""
     model_config = ConfigDict(extra='forbid', validate_default=True)
 
-    dataset_source: str = "local" # Or Hub
+    dataset_source: Literal["local", "hub"] = "local"
     train_dataset_id: Optional[str] = None
     knowledgebase_dataset_id: Optional[str] = None
     local_train_path: Optional[str] = None
