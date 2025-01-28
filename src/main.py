@@ -88,11 +88,11 @@ class QuestionGeneratorConfig(BaseModel):
     
     output_path: str
     input_dataset_config: QuestionGenInputConfig
-    litellm_config: LiteLLMConfig
-    max_workers: int = 20
-    deduplication_enabled: bool = True
-    dedup_embedding_batch_size: int = 500
-    similarity_threshold: float = 0.85
+    litellm_config: Optional[LiteLLMConfig]
+    max_workers: Optional[int] = 20
+    deduplication_enabled: Optional[bool] = True
+    dedup_embedding_batch_size: Optional[int] = 500
+    similarity_threshold: Optional[float] = 0.85
     upload_config: Optional[UploadConfig] = None
     llm_calls_per_minute: Optional[int] = 15
     embedding_calls_per_minute: Optional[int] = 15
@@ -104,8 +104,8 @@ class ModelSettings(BaseModel):
     model_id: str
     matryoshka_dimensions: List[int] = [768, 512, 256, 128, 64]
     metric_for_best_model: str = "eval_dim_128_cosine_ndcg@10"
-    max_seq_length: int = 768
-    trust_remote_code: bool = False
+    max_seq_length: Optional[int] = 768
+    trust_remote_code: Optional[bool] = False
 
 class TrainingArguments(BaseModel):
     """Arguments for model training."""
@@ -115,34 +115,34 @@ class TrainingArguments(BaseModel):
     output_path: str
     
     # Basic training parameters
-    epochs: int = 4
-    batch_size: int = 32
-    gradient_accumulation_steps: int = 16
-    learning_rate: float = 2.0e-5
+    epochs: Optional[int] = 4
+    batch_size: Optional[int] = 32
+    gradient_accumulation_steps: Optional[int] = 16
+    learning_rate: Optional[float] = 2.0e-5
     
     # Learning rate scheduler settings
-    warmup_ratio: float = 0.1
-    lr_scheduler_type: str = "cosine"
+    warmup_ratio: Optional[float] = 0.1
+    lr_scheduler_type: Optional[str] = "cosine"
     
     # Optimizer settings
-    optim: str = "adamw_torch_fused"
+    optim: Optional[str] = "adamw_torch_fused"
     
     # Hardware optimization flags
-    tf32: bool = True
-    bf16: bool = True
+    tf32: Optional[bool] = True
+    bf16: Optional[bool] = True
     
     # Batch sampling strategy
-    batch_sampler: BatchSamplers = BatchSamplers.NO_DUPLICATES
+    batch_sampler: Optional[BatchSamplers] = BatchSamplers.NO_DUPLICATES
     
     # Training and evaluation strategy
-    eval_strategy: str = "epoch"
-    save_strategy: str = "epoch"
-    logging_steps: int = 10
-    save_total_limit: int = 3
-    load_best_model_at_end: bool = True
+    eval_strategy: Optional[str] = "epoch"
+    save_strategy: Optional[str] = "epoch"
+    logging_steps: Optional[int] = 10
+    save_total_limit: Optional[int] = 3
+    load_best_model_at_end: Optional[bool] = True
     
     # Reporting
-    report_to: str = "none"
+    report_to: Optional[str] = "none"
 
 class TrainingConfig(BaseModel):
     """Configuration for model training."""
