@@ -61,93 +61,115 @@ python src/main.py
 The pipeline is controlled through a single `config.yaml` file. Here's a complete configuration example:
 
 ```yaml
-# Pipeline Stage Control
+# ========== Pipeline Control ==========
 pipeline:
-  from_stage: "CHUNK"    # Options: CHUNK, GENERATE, TRAIN
-  to_stage: "TRAIN"
+  from_stage: "CHUNK"    # Options: "CHUNK", "GENERATE", "TRAIN"
+  to_stage: "TRAIN"      # Run pipeline from from_stage to to_stage
 
-# Path to Knowledgebase Directory
-path_to_knowledgebase: "./testing/knowledgebase"
+# ========== Global Settings ==========
+path_to_knowledgebase: "./testing/knowledgebase"  # Directory containing source documents
+hub_username: "AdamLucek"                         # Hugging Face username
+hub_token: null                                   # Optional: Use HF_TOKEN env variable instead
 
-# Base HF Hub credentials
-hub_username: "AdamLucek"
-hub_token: null  # or rely on HF_TOKEN environment variable
-
-# Chunking Config
+# ========== Document Chunking ==========
 chunker_config:
-  output_path: "./output/knowledgebase-quickb.json"
+  output_path: "./output/knowledgebase.json"
   
-  # Chunker Arguments
+  # Chunker Config:
   chunker: "RecursiveTokenChunker"
+  
   chunker_arguments:
     chunk_size: 400
     chunk_overlap: 0
+    length_type: "character"
     separators: ["\n\n", "\n", ".", "?", "!", " ", ""]
     keep_separator: true
     is_separator_regex: false
-    length_type: "character"
   
+  # Optional: Push chunks to Hugging Face Hub
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb"
+    hub_dataset_id: "AdamLucek/quickb-kb"
 
-# Question Generation
+# ========== Question Generation ==========
 question_generation:
   output_path: "./output/train_data.json"
-  
-  # LLM & Embedding Model Config
+
+  # LLM/Embedding Configuration
   litellm_config:
     model: "openai/gpt-4o-mini"
-    model_api_base: null
+    model_api_base: null     # Optional: Custom API endpoint
+
     embedding_model: "text-embedding-3-large"
-    embedding_api_base: null
-  
-  # API Limits
-  max_workers: 20
-  llm_calls_per_minute: 256 
-  embedding_calls_per_minute: 15
+    embedding_api_base: null # Optional: Custom embedding endpoint
 
-  # Deduplication Config
+  # Input dataset settings
+  input_dataset_config:
+    dataset_source: "local"  # Options: "local", "hub"
+    local_knowledgebase_path: "./output/knowledgebase.json"
+    # Hub alternative:
+    # knowledgebase_dataset_id: "username/quickb-kb"
+
+  # Performance settings
+  max_workers: 150                    # Parallel question generation
+  llm_calls_per_minute: null          # null = no limit
+  embedding_calls_per_minute: null    # null = no limit
+
+  # Question deduplication
   deduplication_enabled: true
-  dedup_embedding_batch_size: 512
-  similarity_threshold: 0.85
+  dedup_embedding_batch_size: 2048    # Batch size for embedding calculation
+  similarity_threshold: 0.85          # Semantic Similarity Threshold
 
+  # Optional: Push training data to Hub
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb"
+    hub_dataset_id: "AdamLucek/quickb-qa"
 
-# Training config
+# ========== Model Training ==========
 training:
-  # Main Model Selection & MRL Loss Setup
+  # Model configuration
   model_settings:
+    # Base model:
     model_id: "nomic-ai/modernbert-embed-base"
+    
+    # Matryoshka dimensions (must be descending)
     matryoshka_dimensions: [768, 512, 256, 128, 64]
     metric_for_best_model: "eval_dim_128_cosine_ndcg@10"
     max_seq_length: 1024
     trust_remote_code: false
-  
-  # Trainer Arguments
+
+  # Training data configuration
+  train_dataset_config:
+    dataset_source: "local"  # Options: "local", "hub"
+    local_train_path: "./output/train_data.json"
+    local_knowledgebase_path: "./output/knowledgebase.json"
+    # Hub alternatives:
+    # train_dataset_id: "AdamLucek/quickb-qa"
+    # knowledgebase_dataset_id: "AdamLucek/quickb-kb"
+
+  # Training hyperparameters
   training_arguments:
     output_path: "./output/modernbert_quickb"
     epochs: 4
-    learning_rate: 2.0e-5
     batch_size: 32
     gradient_accumulation_steps: 16
+    learning_rate: 2.0e-5
     warmup_ratio: 0.1
     lr_scheduler_type: "cosine"
     optim: "adamw_torch_fused"
     tf32: true
     bf16: true
-    batch_sampler: "no_duplicates"
+    batch_sampler: "no_duplicates"  # Options: "batch_sampler", "no_duplicates", "group_by_label"
     eval_strategy: "epoch"
     save_strategy: "epoch"
     logging_steps: 10
     save_total_limit: 3
     load_best_model_at_end: true
     report_to: "none"
-    
+
+  # Optional: Push trained model to Hub
   upload_config:
     push_to_hub: true
     hub_private: false
@@ -248,6 +270,46 @@ chunker_config:
 ```
 
 For more details on setting up local models and supported providers, refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers).
+
+### Hugging Face Hub Integration
+
+QuicKB integrates directly with [Hugging Face](https://huggingface.co/) for storing and loading datasets and models. Each pipeline stage can optionally push its outputs to the Hub, and subsequent stages can load data directly from there.
+
+The Hub integration is configured through `upload_config` sections and dataset source settings:
+
+```yaml
+# Example Hub configuration for chunking
+chunker_config:
+  upload_config:
+    push_to_hub: true
+    hub_private: false
+    hub_dataset_id: "username/quickb-kb"
+
+# Loading data from Hub for question generation
+question_generation:
+  input_dataset_config:
+    dataset_source: "hub"
+    knowledgebase_dataset_id: "username/quickb-kb"
+  
+  upload_config:
+    push_to_hub: true
+    hub_private: false
+    hub_dataset_id: "username/quickb-qa"
+
+# Loading from Hub for training
+training:
+  train_dataset_config:
+    dataset_source: "hub"
+    train_dataset_id: "username/quickb-qa"
+    knowledgebase_dataset_id: "username/quickb-kb"
+  
+  upload_config:
+    push_to_hub: true
+    hub_private: false
+    hub_model_id: "username/modernbert-embed-quickb"
+```
+**Authentication**
+- Set your Hugging Face token using the `HF_TOKEN` environment variable or specify it in the config using `hub_token`
 
 ## Output Format
 
