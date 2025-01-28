@@ -67,7 +67,7 @@ pipeline:
   to_stage: "TRAIN"      # Run pipeline from from_stage to to_stage
 
 # ========== Global Settings ==========
-path_to_knowledgebase: "./testing/knowledgebase"  # Directory containing source documents
+path_to_knowledgebase: "./knowledgebase"          # Directory containing source documents
 hub_username: "AdamLucek"                         # Hugging Face username
 hub_token: null                                   # Optional: Use HF_TOKEN env variable instead
 
