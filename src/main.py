@@ -477,7 +477,7 @@ def run_pipeline(config: PipelineConfig):
     from_stage = PipelineStage[config.pipeline["from_stage"]]
     to_stage = PipelineStage[config.pipeline["to_stage"]]
 
-    kb_dataset = None  # Initialize kb_dataset to None
+    kb_dataset = None
     train_dataset = None
     question_metrics = None
 
@@ -486,13 +486,18 @@ def run_pipeline(config: PipelineConfig):
         logger.info("Running CHUNK stage.")
         kb_dataset = process_chunks(config)
     else:
-        logger.info("Skipping CHUNK stage. Loading existing chunks.")
-        # Load chunks based on question_generation.input_dataset_config - only if needed for later stages
-        if config.question_generation and config.question_generation.input_dataset_config.dataset_source == "hub":
+        logger.info("Skipping CHUNK stage.")
+
+    # Load knowledgebase dataset if GENERATE or TRAIN stage is being run and dataset source is configured
+    if to_stage.value >= PipelineStage.GENERATE.value and config.question_generation and config.question_generation.input_dataset_config.dataset_source in ["hub", "local"]:
+        logger.info("Loading knowledgebase dataset for GENERATE/TRAIN stage.")
+        if config.question_generation.input_dataset_config.dataset_source == "hub":
             logger.info(f"Loading knowledgebase dataset from Hub: {config.question_generation.input_dataset_config.hub_dataset_id}")
             kb_dataset = load_dataset_from_hub(config.question_generation.input_dataset_config.hub_dataset_id, "knowledgebase")
-        else:  # Default to local chunker output path if not hub or explicitly local
+        elif config.question_generation.input_dataset_config.dataset_source == "local":
+            logger.info(f"Loading knowledgebase dataset from local path: {config.chunker_config.output_path}") # Use chunker output path as default local kb path
             kb_dataset = load_dataset_from_local(config.chunker_config.output_path)
+
 
     # 2. GENERATE
     if from_stage.value <= PipelineStage.GENERATE.value <= to_stage.value:
@@ -507,15 +512,14 @@ def run_pipeline(config: PipelineConfig):
             logger.info(f"Loading training dataset from Hub: {config.training.train_dataset_config.hub_dataset_id}")
             train_dataset = load_dataset_from_hub(config.training.train_dataset_config.hub_dataset_id, "train")
         elif (to_stage.value >= PipelineStage.TRAIN.value and
-              config.question_generation and config.question_generation.output_path):  # Fallback to local if no hub config
-            train_dataset = load_dataset_from_local(config.question_generation.output_path)
+              config.question_generation and config.question_generation.output_path): # Fallback to local if no hub config is set for training dataset
+            train_dataset = load_dataset_from_local(config.question_generation.output_path) # Use question generation output path as default local train path
 
     # 3. TRAIN
     if from_stage.value <= PipelineStage.TRAIN.value <= to_stage.value:
         logger.info("Running TRAIN stage.")
         if not config.training:
             raise ValueError("No training config found, cannot run TRAIN stage.")
-        # Pass train_dataset directly (already loaded)
         train_model(config, kb_dataset, train_dataset)
     else:
         logger.info("Skipping TRAIN stage.")

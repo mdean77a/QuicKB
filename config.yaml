@@ -10,7 +10,7 @@ path_to_knowledgebase: "./testing/knowledgebase"
 hub_username: "AdamLucek"
 hub_token: null  # or rely on HF_TOKEN environment variable
 
-# Chunking Config
+# ========== Chunking Config ==========
 chunker_config:
   output_path: "./output/knowledgebase-quickb.json"
   
@@ -29,7 +29,7 @@ chunker_config:
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb-hubtest"
 
-# Question Generation
+# ========== Question Generation ==========
 question_generation:
   output_path: "./output/train_data.json"
   
@@ -60,7 +60,7 @@ question_generation:
     hub_private: false
     hub_dataset_id: "AdamLucek/quickb-hubtest-train"
 
-# Training config
+# ========== Training config ==========
 training:
   # Main Model Selection & MRL Loss Setup
   model_settings:
