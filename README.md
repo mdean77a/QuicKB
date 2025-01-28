@@ -6,7 +6,7 @@ Optimize Document Retrieval with Fine-Tuned KnowledgeBases
 
 ## Overview
 
-QuicKB optimizes document retrieval by creating fine-tuned knowledgebases through an end-to-end machine learning pipeline that handles document chunking, training data generation, and embedding model training.
+QuicKB optimizes document retrieval by creating fine-tuned knowledgebases through an end-to-end machine learning pipeline that handles document chunking, synthetic data generation, and embedding model training.
 
 ## Key Features
 
