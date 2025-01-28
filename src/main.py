@@ -34,9 +34,9 @@ class LiteLLMConfig(BaseModel):
     """Configuration for LiteLLM model and embedding settings."""
     model_config = ConfigDict(extra='forbid', validate_default=True)
     
-    model: str = "openai/gpt-4o"
+    model: Optional[str] = "openai/gpt-4o"
     model_api_base: Optional[str] = None
-    embedding_model: str = "openai/text-embedding-3-large"
+    embedding_model: Optional[str] = "openai/text-embedding-3-large"
     embedding_api_base: Optional[str] = None
 
 class QuestionGenInputConfig(BaseModel):
@@ -160,8 +160,8 @@ class PipelineConfig(BaseModel):
     pipeline: Dict[str, str]
     hub_username: Optional[str] = None
     hub_token: Optional[str] = None
-    path_to_knowledgebase: str
-    chunker_config: ChunkerConfig
+    path_to_knowledgebase: Optional[str]
+    chunker_config: Optional[ChunkerConfig]
     question_generation: Optional[QuestionGeneratorConfig] = None
     training: Optional[TrainingConfig] = None
 
