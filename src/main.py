@@ -45,7 +45,8 @@ class InputDatasetConfig(BaseModel):
 
     dataset_source: str = "local" # Options: "local", "hub"
     hub_dataset_id: Optional[str] = None
-    local_dataset_path: Optional[str] = None
+    local_knowledgebase_path: Optional[str] = None 
+    local_train_dataset_path: Optional[str] = None 
 
 class UploadConfig(BaseModel):
     """Configuration for Hugging Face Hub uploads."""
@@ -491,12 +492,14 @@ def run_pipeline(config: PipelineConfig):
     # Load knowledgebase dataset if GENERATE or TRAIN stage is being run and dataset source is configured
     if to_stage.value >= PipelineStage.GENERATE.value and config.question_generation and config.question_generation.input_dataset_config.dataset_source in ["hub", "local"]:
         logger.info("Loading knowledgebase dataset for GENERATE/TRAIN stage.")
-        if config.question_generation.input_dataset_config.dataset_source == "hub":
-            logger.info(f"Loading knowledgebase dataset from Hub: {config.question_generation.input_dataset_config.hub_dataset_id}")
-            kb_dataset = load_dataset_from_hub(config.question_generation.input_dataset_config.hub_dataset_id, "knowledgebase")
-        elif config.question_generation.input_dataset_config.dataset_source == "local":
-            logger.info(f"Loading knowledgebase dataset from local path: {config.chunker_config.output_path}") # Use chunker output path as default local kb path
-            kb_dataset = load_dataset_from_local(config.chunker_config.output_path)
+        input_config = config.question_generation.input_dataset_config
+        if input_config.dataset_source == "hub":
+            logger.info(f"Loading knowledgebase dataset from Hub: {input_config.hub_dataset_id}")
+            kb_dataset = load_dataset_from_hub(input_config.hub_dataset_id, "knowledgebase")
+        elif input_config.dataset_source == "local":
+            local_kb_path = input_config.local_knowledgebase_path or config.chunker_config.output_path # Prioritize explicit path
+            logger.info(f"Loading knowledgebase dataset from local path: {local_kb_path}")
+            kb_dataset = load_dataset_from_local(local_kb_path)
 
 
     # 2. GENERATE
@@ -512,8 +515,12 @@ def run_pipeline(config: PipelineConfig):
             logger.info(f"Loading training dataset from Hub: {config.training.train_dataset_config.hub_dataset_id}")
             train_dataset = load_dataset_from_hub(config.training.train_dataset_config.hub_dataset_id, "train")
         elif (to_stage.value >= PipelineStage.TRAIN.value and
-              config.question_generation and config.question_generation.output_path): # Fallback to local if no hub config is set for training dataset
-            train_dataset = load_dataset_from_local(config.question_generation.output_path) # Use question generation output path as default local train path
+              config.training and config.training.train_dataset_config.dataset_source == "local"): # Check training config for local path
+            train_dataset_config = config.training.train_dataset_config
+            local_train_path = train_dataset_config.local_train_dataset_path or config.question_generation.output_path # Prioritize explicit path
+            logger.info(f"Loading training dataset from local path: {local_train_path}")
+            train_dataset = load_dataset_from_local(local_train_path) # Use training dataset local path
+
 
     # 3. TRAIN
     if from_stage.value <= PipelineStage.TRAIN.value <= to_stage.value:

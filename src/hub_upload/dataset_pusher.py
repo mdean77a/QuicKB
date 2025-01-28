@@ -33,6 +33,9 @@ class DatasetPusher:
 
     def _load_json_file(self, file_path: str) -> list:
         """Load JSON file and ensure it's a list of records."""
+        if not file_path: # Check if file_path is None or empty string
+            return None # Return None if no path provided
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -71,9 +74,9 @@ class DatasetPusher:
             dataset_name=repository_name,
             chunker_name=chunker_info.get('chunker_name') if chunker_info else None,
             chunker_params=chunker_info.get('chunker_params') if chunker_info else None,
-            num_chunks=stats.get('num_chunks'),
-            avg_chunk_size=stats.get('avg_chunk_size'),
-            num_files=stats.get('num_files'),
+            num_chunks=stats.get('num_chunks') if stats else None, # Handle None case for stats
+            avg_chunk_size=stats.get('avg_chunk_size') if stats else None, # Handle None case for stats
+            num_files=stats.get('num_files') if stats else None, # Handle None case for stats
             question_generation=question_gen_info
         )
 
@@ -102,7 +105,10 @@ class DatasetPusher:
             else:
                 logger.info(f"Dataset repository already exists: {hub_dataset_id}. Updating...")
 
+            # Conditionally load knowledgebase data and calculate stats
             kb_data = self._load_json_file(knowledgebase_path) if knowledgebase_path else None
+            chunker_stats = self._calculate_dataset_stats(kb_data, chunker_info) if kb_data and chunker_info else None # Conditional stats calculation
+
             train_data = self._load_json_file(train_path) if train_path else None
 
             # Get repository name from hub_dataset_id

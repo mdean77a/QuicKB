@@ -1,7 +1,7 @@
 # Pipeline Stage Control
 pipeline:
-  from_stage: "TRAIN"    # Options: CHUNK, GENERATE, TRAIN
-  to_stage: "TRAIN"
+  from_stage: "GENERATE"    # Options: CHUNK, GENERATE, TRAIN
+  to_stage: "GENERATE"
 
 # Path to Knowledgebase Directory
 path_to_knowledgebase: "./testing/knowledgebase"
@@ -27,12 +27,12 @@ chunker_config:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hubtest"
+    hub_dataset_id: "AdamLucek/quickb-hub-test-final"
 
 # ========== Question Generation ==========
 question_generation:
   output_path: "./output/train_data.json"
-  
+
   # LLM & Embedding Model Config
   litellm_config:
     model: "openai/gpt-4o-mini"
@@ -41,13 +41,13 @@ question_generation:
     embedding_api_base: null
 
   input_dataset_config:
-    dataset_source: "hub" # Options: "local", "hub" - Default to local
-    hub_dataset_id: "AdamLucek/quickb-hubtest"
-    local_dataset_path: null  
-  
+    dataset_source: "local" # Options: "local", "hub" - Default to local
+    # hub_dataset_id: "AdamLucek/quickb-hubtest"
+    local_knowledgebase_path: ./output/knowledgebase.json # ADD THIS LINE - Explicit path for KB
+
   # API Limits
   max_workers: 100
-  llm_calls_per_minute: null 
+  llm_calls_per_minute: null
   embedding_calls_per_minute: null
 
   # Deduplication Config
@@ -58,7 +58,7 @@ question_generation:
   upload_config:
     push_to_hub: true
     hub_private: false
-    hub_dataset_id: "AdamLucek/quickb-hubtest-train"
+    hub_dataset_id: "AdamLucek/quickb-hub-test-final"
 
 # ========== Training config ==========
 training:
@@ -73,8 +73,9 @@ training:
   train_dataset_config:
     dataset_source: "hub" # Options: "local", "hub" - Default to local
     hub_dataset_id: "AdamLucek/quickb-hubtest-train"      # Required if dataset_source: "hub" - Leave null for local
-    local_dataset_path: null  # Required if dataset_source: "local" - Can leave null to default
-  
+    local_train_dataset_path: null 
+    local_knowledgebase_path: null
+
   # Trainer Arguments
   training_arguments:
     output_path: "./output/modernbert_quickb"
@@ -94,7 +95,7 @@ training:
     save_total_limit: 3
     load_best_model_at_end: true
     report_to: "none"
-    
+
   upload_config:
     push_to_hub: false
     hub_private: false
