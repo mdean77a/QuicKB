@@ -4,8 +4,8 @@ import logging
 import torch
 import yaml
 from pathlib import Path
-from typing import Dict, List
-from datasets import load_dataset
+from typing import Dict, List, Any
+from datasets import load_dataset, Dataset
 from sentence_transformers import (
     SentenceTransformer,
     SentenceTransformerModelCardData,
@@ -29,6 +29,28 @@ def load_main_config(config_path_or_obj):
         with open(config_path_or_obj, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     return config_path_or_obj.model_dump()
+
+def validate_dataset_consistency(kb_dataset: List[Dict[str, Any]], train_dataset: List[Dict[str, Any]]) -> bool:
+    """Validate that all chunk IDs referenced in training data exist in knowledgebase."""
+    logger.info("Validating dataset consistency...")
+    
+    # Get all chunk IDs from knowledgebase
+    kb_ids = {str(item['id']) for item in kb_dataset}
+    logger.info(f"Found {len(kb_ids)} unique chunks in knowledgebase")
+    
+    # Get all chunk IDs referenced in training data
+    train_chunk_ids = {str(item['chunk_id']) for item in train_dataset}
+    logger.info(f"Found {len(train_chunk_ids)} unique chunk references in training data")
+    
+    # Find missing chunks
+    missing_chunks = train_chunk_ids - kb_ids
+    if missing_chunks:
+        logger.error(f"Found {len(missing_chunks)} chunk IDs in training data that don't exist in knowledgebase")
+        logger.error(f"First few missing IDs: {list(missing_chunks)[:5]}")
+        return False
+        
+    logger.info("Dataset consistency validation passed!")
+    return True
 
 def build_evaluation_structures(kb_dataset, test_dataset, kb_id_field="id", kb_text_field="text"):
     corpus = {row[kb_id_field]: row[kb_text_field] for row in kb_dataset}
@@ -199,27 +221,19 @@ def save_metrics_to_file(before: dict, after: dict, dim_list: list, path="metric
         write_table(f, "Absolute Changes (Δ)", headers, delta_rows, num_formatter)
         write_table(f, "Percentage Changes", headers, pct_change_rows, num_formatter)
 
-def main(config):
+def main(config, train_dataset: List[Dict[str, Any]], kb_dataset: List[Dict[str, Any]]):
     """Main training function."""
     if not hasattr(config, 'training') or not config.training:
         raise ValueError("Training configuration is required but not provided")
 
-    # Get paths from config
-    kb_path = config.chunker_config.output_path
-    train_path = config.question_generation.output_path if config.question_generation else None
+    # Validate dataset consistency before proceeding
+    if not validate_dataset_consistency(kb_dataset, train_dataset):
+        raise ValueError("Dataset consistency check failed - chunks and training data are mismatched. "
+                        "This usually happens when chunks have been regenerated after question generation.")
 
-    # Verify files exist
-    if not os.path.exists(kb_path):
-        raise FileNotFoundError(f"Knowledgebase file not found: {kb_path}")
-    if train_path and not os.path.exists(train_path):
-        raise FileNotFoundError(f"Training data file not found: {train_path}")
+    # Convert lists to dataset objects if needed
+    train_dataset_full = Dataset.from_list(train_dataset)
 
-    # Load knowledge base data
-    with open(kb_path, "r", encoding="utf-8") as f:
-        kb_data = json.load(f)
-
-    # Load and prepare training dataset
-    train_dataset_full = load_dataset("json", data_files=train_path, split="train")
     if "id" not in train_dataset_full.column_names:
         train_dataset_full = train_dataset_full.add_column("id", list(range(len(train_dataset_full))))
     if "chunk_id" in train_dataset_full.column_names:
@@ -232,7 +246,7 @@ def main(config):
 
     # Build evaluation structures
     corpus, queries, relevant_docs = build_evaluation_structures(
-        kb_dataset=kb_data,
+        kb_dataset=kb_dataset,
         test_dataset=test_dataset,
         kb_id_field="id",
         kb_text_field="text"

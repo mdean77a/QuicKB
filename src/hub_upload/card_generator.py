@@ -51,24 +51,19 @@ class DatasetCardGenerator:
 
     def _format_dataset_structure(self, has_chunks: bool, has_questions: bool) -> str:
         """Format dataset structure section based on available configurations."""
-        sections = []
-        section_num = 1
-        
-        if has_chunks:
-            sections.append(f"{section_num}. `knowledgebase`: Contains the chunked text documents\n   - Fields: id (string), text (string), source (string)")
-            section_num += 1
-            
         if has_questions:
-            sections.append(f"{section_num}. `train`: Contains generated question-answer pairs\n   - Fields: anchor (string), positive (string), question_id (string), chunk_id (string)")
-            
-        if not sections:
-            return "No dataset configurations present."
-            
-        count_word = "one" if len(sections) == 1 else "two"
-        
-        return f"""### Dataset Structure
-This dataset contains {count_word} configuration{'s' if len(sections) > 1 else ''}:
-""" + "\n".join(sections)
+            return """### Dataset Structure
+- `anchor`: The generated question
+- `positive`: The text chunk containing the answer
+- `question_id`: Unique identifier for the question
+- `chunk_id`: Reference to the source chunk"""
+        else:
+            return """### Dataset Structure
+This dataset contains the following fields:
+
+- `text`: The content of each text chunk
+- `source`: The source file path for the chunk
+- `id`: Unique identifier for each chunk"""
 
     def _format_chunking_section(self,
         chunker_name: str,
