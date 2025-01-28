@@ -2,9 +2,8 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from statistics import mean
-from datasets import Dataset, load_dataset
+from typing import Optional, Dict, Any
+from datasets import Dataset
 from huggingface_hub import create_repo, upload_file, repo_exists
 from .card_generator import DatasetCardGenerator
 
@@ -43,73 +42,16 @@ class DatasetPusher:
             logger.error(f"Error loading {file_path}: {str(e)}")
             raise
 
-    def _load_existing_dataset_config(self, hub_dataset_id: str, config_name: str) -> Optional[List[Dict[str, Any]]]:
-        """
-        Load a specific configuration from an existing dataset on the Hub.
-
-        We always load split="train" by default, because the huggingface
-        datasets library typically stores everything in a 'train' split
-        unless you explicitly do otherwise.
-        """
-        try:
-            logger.info(f"Attempting to load existing '{config_name}' configuration from Hub: {hub_dataset_id}")
-            dataset = load_dataset(
-                hub_dataset_id,
-                config_name,
-                split="train",
-                token=self.token
-            )
-            if dataset:
-                logger.info(f"Successfully loaded existing '{config_name}' configuration.")
-                return dataset.to_list()  # Convert HF Dataset to list of dicts
-            else:
-                logger.info(f"No existing '{config_name}' configuration found on Hub.")
-                return None
-
-        except FileNotFoundError:
-            logger.info(f"No existing '{config_name}' configuration found on Hub (FileNotFound).")
-            return None
-        except Exception as e:
-            logger.error(
-                f"Error loading existing '{config_name}' configuration from Hub: "
-                f"{hub_dataset_id}, config: {config_name}. Error: {e}"
-            )
-            return None
-
-    def _calculate_dataset_stats(self, knowledgebase_data: List[Dict[str, Any]], chunker_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_dataset_stats(self, knowledgebase_data: list) -> Dict[str, Any]:
         """Calculate statistics for dataset card."""
         text_lengths = [len(item['text'].split()) for item in knowledgebase_data]
         unique_sources = len(set(item['source'] for item in knowledgebase_data))
 
         return {
             'num_chunks': len(knowledgebase_data),
-            'avg_chunk_size': mean(text_lengths),
-            'num_files': unique_sources,
-            **chunker_info
+            'avg_chunk_size': sum(text_lengths) / len(text_lengths) if text_lengths else 0,
+            'num_files': unique_sources
         }
-
-    def _create_dataset_card(
-        self,
-        repository_name: str,
-        kb_data: Optional[List[Dict[str, Any]]] = None,
-        chunker_info: Optional[Dict[str, Any]] = None,
-        train_data: Optional[List[Dict[str, Any]]] = None,
-        question_gen_info: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Create dataset card content based on available data."""
-        stats = {}
-        if kb_data and chunker_info:
-            stats = self._calculate_dataset_stats(kb_data, chunker_info)
-
-        return self.card_generator.generate_card(
-            dataset_name=repository_name,
-            chunker_name=chunker_info.get('chunker_name') if chunker_info else None,
-            chunker_params=chunker_info.get('chunker_params') if chunker_info else None,
-            num_chunks=stats.get('num_chunks'),
-            avg_chunk_size=stats.get('avg_chunk_size'),
-            num_files=stats.get('num_files'),
-            question_generation=question_gen_info
-        )
 
     def push_dataset(
         self,
@@ -120,12 +62,10 @@ class DatasetPusher:
         question_gen_info: Optional[Dict[str, Any]] = None,
         private: bool = True
     ) -> None:
-        """Push dataset configurations to the Hugging Face Hub."""
+        """Push dataset to the Hugging Face Hub, overwriting existing data."""
         try:
-            repo_exists_flag = self._repository_exists(hub_dataset_id)
-
-            if not repo_exists_flag:
-                # Create new repository if it doesn't exist
+            # Create repository if it doesn't exist
+            if not self._repository_exists(hub_dataset_id):
                 create_repo(
                     hub_dataset_id,
                     repo_type="dataset",
@@ -134,29 +74,43 @@ class DatasetPusher:
                 )
                 logger.info(f"Created new dataset repository: {hub_dataset_id}")
             else:
-                logger.info(f"Dataset repository already exists: {hub_dataset_id}. Updating...")
+                logger.info(f"Dataset repository exists: {hub_dataset_id}")
 
-            # 1) Load existing knowledgebase config
-            existing_kb_data = self._load_existing_dataset_config(hub_dataset_id, "knowledgebase")
+            # Load and push knowledgebase if provided
+            kb_data = None
+            if knowledgebase_path:
+                kb_data = self._load_json_file(knowledgebase_path)
+                kb_dataset = Dataset.from_list(kb_data)
+                kb_dataset.push_to_hub(
+                    hub_dataset_id,
+                    token=self.token,
+                    private=private
+                )
+                logger.info(f"Pushed knowledgebase to {hub_dataset_id}")
 
-            # 2) Load existing QA config (**renamed** from "train" to "qa")
-            existing_qa_data = self._load_existing_dataset_config(hub_dataset_id, "qa")
+            # Load and push training data if provided
+            if train_path:
+                train_data = self._load_json_file(train_path)
+                train_dataset = Dataset.from_list(train_data)
+                train_dataset.push_to_hub(
+                    hub_dataset_id,
+                    token=self.token,
+                    private=private
+                )
+                logger.info(f"Pushed training data to {hub_dataset_id}")
 
-            kb_data = self._load_json_file(knowledgebase_path) if knowledgebase_path else None
-
-            # Get repository name from hub_dataset_id
+            # Generate and upload README
             repository_name = hub_dataset_id.split('/')[-1]
-
-            # Create dataset card content - always regenerate
-            card_content = self._create_dataset_card(
-                repository_name=repository_name,
-                kb_data=kb_data,
-                chunker_info=chunker_info,
-                train_data=kb_data,  # If you want to pass separate info for QA data, do so here
-                question_gen_info=question_gen_info
+            card_content = self.card_generator.generate_card(
+                dataset_name=repository_name,
+                chunker_name=chunker_info.get('chunker_name') if chunker_info else None,
+                chunker_params=chunker_info.get('chunker_params') if chunker_info else None,
+                num_chunks=self._calculate_dataset_stats(kb_data)['num_chunks'] if kb_data else None,
+                avg_chunk_size=self._calculate_dataset_stats(kb_data)['avg_chunk_size'] if kb_data else None,
+                num_files=self._calculate_dataset_stats(kb_data)['num_files'] if kb_data else None,
+                question_generation=question_gen_info
             )
 
-            # Upload README
             upload_file(
                 path_or_fileobj=card_content.encode('utf-8'),
                 path_in_repo="README.md",
@@ -164,60 +118,8 @@ class DatasetPusher:
                 repo_type="dataset",
                 token=self.token
             )
-            logger.info(f"Uploaded/Updated README.md to {hub_dataset_id}")
-
-            # Prepare merged data references
-            merged_kb_data = kb_data
-            merged_qa_data = self._load_json_file(train_path) if train_path else None
-
-            # Push knowledgebase config
-            if kb_data:
-                if existing_kb_data:
-                    logger.info("Merging new knowledgebase data with existing data from Hub.")
-                    merged_kb_data = existing_kb_data + kb_data
-                else:
-                    logger.info("No existing knowledgebase data found on Hub, using new data.")
-
-                kb_dataset = Dataset.from_list(merged_kb_data)
-                kb_dataset.push_to_hub(
-                    hub_dataset_id,
-                    config_name="knowledgebase",  # <--- store in config="knowledgebase"
-                    token=self.token,
-                    private=private,
-                )
-                logger.info(
-                    f"{'Updated' if repo_exists_flag else 'Pushed'} knowledgebase "
-                    f"configuration to {hub_dataset_id}"
-                )
-
-            # Push QA config
-            if train_path:
-                if existing_qa_data:
-                    logger.info("Merging new QA data with existing data from Hub.")
-                    merged_qa_data = existing_qa_data + merged_qa_data
-                else:
-                    logger.info("No existing QA data found on Hub, using new data.")
-
-                qa_dataset = Dataset.from_list(merged_qa_data)
-                qa_dataset.push_to_hub(
-                    hub_dataset_id,
-                    config_name="qa",  # <--- store in config="qa"
-                    token=self.token,
-                    private=private,
-                )
-                logger.info(
-                    f"{'Updated' if repo_exists_flag else 'Pushed'} QA "
-                    f"configuration to {hub_dataset_id}"
-                )
-
-            logger.info(
-                f"Successfully {'updated' if repo_exists_flag else 'completed'} "
-                f"dataset {'update' if repo_exists_flag else 'upload'} to {hub_dataset_id}"
-            )
+            logger.info(f"Uploaded README.md to {hub_dataset_id}")
 
         except Exception as e:
-            logger.error(
-                f"Error {'updating' if repo_exists_flag else 'pushing'} "
-                f"dataset to Hub: {str(e)}"
-            )
+            logger.error(f"Error pushing dataset to Hub: {str(e)}")
             raise

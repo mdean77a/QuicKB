@@ -32,25 +32,34 @@ class BatchSamplers(str, Enum):
 
 class LiteLLMConfig(BaseModel):
     """Configuration for LiteLLM model and embedding settings."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     model: str = "openai/gpt-4o"
     model_api_base: Optional[str] = None
     embedding_model: str = "openai/text-embedding-3-large"
     embedding_api_base: Optional[str] = None
 
-class InputDatasetConfig(BaseModel):
-    """Configuration for input dataset source."""
-    model_config = ConfigDict(extra='forbid')
+class QuestionGenInputConfig(BaseModel):
+    """Configuration for question generation input dataset."""
+    model_config = ConfigDict(extra='forbid', validate_default=True)
 
-    dataset_source: str = "local" # Options: "local", "hub"
-    hub_dataset_id: Optional[str] = None
-    local_knowledgebase_path: Optional[str] = None 
-    local_train_dataset_path: Optional[str] = None 
+    dataset_source: str = "local" # Or Hub
+    knowledgebase_dataset_id: Optional[str] = None
+    local_knowledgebase_path: Optional[str] = None
+
+class TrainInputConfig(BaseModel):
+    """Configuration for training input datasets."""
+    model_config = ConfigDict(extra='forbid', validate_default=True)
+
+    dataset_source: str = "local" # Or Hub
+    train_dataset_id: Optional[str] = None
+    knowledgebase_dataset_id: Optional[str] = None
+    local_train_path: Optional[str] = None
+    local_knowledgebase_path: Optional[str] = None
 
 class UploadConfig(BaseModel):
     """Configuration for Hugging Face Hub uploads."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     push_to_hub: bool = False
     hub_private: bool = False
@@ -59,7 +68,7 @@ class UploadConfig(BaseModel):
 
 class ChunkerConfig(BaseModel):
     """Configuration for text chunking."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     chunker: str
     chunker_arguments: Dict[str, Any]
@@ -75,10 +84,10 @@ class ChunkerConfig(BaseModel):
 
 class QuestionGeneratorConfig(BaseModel):
     """Configuration for question generation."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     output_path: str
-    input_dataset_config: InputDatasetConfig
+    input_dataset_config: QuestionGenInputConfig
     litellm_config: LiteLLMConfig
     max_workers: int = 20
     deduplication_enabled: bool = True
@@ -90,7 +99,7 @@ class QuestionGeneratorConfig(BaseModel):
 
 class ModelSettings(BaseModel):
     """Settings for the embedding model training."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     model_id: str
     matryoshka_dimensions: List[int] = [768, 512, 256, 128, 64]
@@ -100,7 +109,7 @@ class ModelSettings(BaseModel):
 
 class TrainingArguments(BaseModel):
     """Arguments for model training."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     # Required parameters
     output_path: str
@@ -137,16 +146,16 @@ class TrainingArguments(BaseModel):
 
 class TrainingConfig(BaseModel):
     """Configuration for model training."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     model_settings: ModelSettings
     training_arguments: TrainingArguments
+    train_dataset_config: TrainInputConfig
     upload_config: Optional[UploadConfig] = None
-    train_dataset_config: InputDatasetConfig
 
 class PipelineConfig(BaseModel):
     """Main configuration for the QuicKB pipeline."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', validate_default=True)
     
     pipeline: Dict[str, str]
     hub_username: Optional[str] = None
@@ -171,13 +180,18 @@ def load_dataset_from_local(file_path: str) -> List[Dict[str, Any]]:
         logger.error(f"Error decoding JSON in {file_path}")
         raise
 
-def load_dataset_from_hub(hub_dataset_id: str, config_name: str) -> List[Dict[str, Any]]:
-    """Load dataset from Hugging Face Hub."""
+def load_dataset_from_hub(hub_dataset_id: str) -> List[Dict[str, Any]]:
+    """Load dataset from Hugging Face Hub using default config."""
     try:
-        dataset = load_dataset(hub_dataset_id, config_name, split="train")
-        return dataset.to_list()
+        logger.info(f"Loading dataset from Hub: {hub_dataset_id}")
+        dataset = load_dataset(hub_dataset_id, split="train")
+        if dataset:
+            return dataset.to_list()
+        else:
+            logger.error(f"No data found in dataset: {hub_dataset_id}")
+            return []
     except Exception as e:
-        logger.error(f"Error loading dataset from Hugging Face Hub: {hub_dataset_id}, config: {config_name}. Error: {e}")
+        logger.error(f"Error loading dataset from Hub: {hub_dataset_id}. Error: {e}")
         raise
 
 
@@ -202,11 +216,7 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     
     # Get chunker class
     chunker_class = ChunkerRegistry.get_chunker(config.chunker_config.chunker)
-
-    # Make a copy of chunker arguments
     args = config.chunker_config.chunker_arguments.copy()
-    
-    # Initialize chunker
     chunker = chunker_class(**args)
 
     logger.info(f"Initialized Chunker: {config.chunker_config.chunker}")
@@ -215,6 +225,7 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
     base_path = Path(config.path_to_knowledgebase)
     results = []
     total_chunks = 0
+    
     for file_path in base_path.rglob('*.txt'):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -222,7 +233,6 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
             chunks = chunker.split_text(text)
             source_path = str(file_path.relative_to(base_path))
             
-            # Create records for each chunk
             for chunk in chunks:
                 results.append({
                     "id": str(uuid.uuid4()),
@@ -251,23 +261,19 @@ def process_chunks(config: PipelineConfig) -> List[Dict[str, Any]]:
         config.chunker_config.upload_config and 
         config.chunker_config.upload_config.push_to_hub):
         try:
-            # Initialize pusher
             pusher = DatasetPusher(
                 username=config.hub_username,
                 token=config.hub_token
             )
             
-            # Get repository id from config or fallback to path
             repository_id = (config.chunker_config.upload_config.hub_dataset_id 
                            or f"{config.hub_username}/{Path(config.chunker_config.output_path).stem}")
             
-            # Collect chunker info
             chunker_info = {
                 'chunker_name': config.chunker_config.chunker,
                 'chunker_params': config.chunker_config.chunker_arguments
             }
             
-            # Push dataset
             pusher.push_dataset(
                 hub_dataset_id=repository_id,
                 knowledgebase_path=config.chunker_config.output_path,
@@ -367,21 +373,14 @@ def generate_questions(
     if (config.hub_username and 
         config.question_generation.upload_config and 
         config.question_generation.upload_config.push_to_hub):
-        try:            
-            # Initialize pusher
+        try:
             pusher = DatasetPusher(
                 username=config.hub_username,
                 token=config.hub_token
             )
             
-            # Get repository id from config or fallback to maintaining consistency with chunks
-            repository_id = (
-                config.question_generation.upload_config.hub_dataset_id or
-                (config.chunker_config.upload_config.hub_dataset_id if config.chunker_config.upload_config else None) or
-                f"{config.hub_username}/{Path(config.chunker_config.output_path).stem}"
-            )
+            repository_id = config.question_generation.upload_config.hub_dataset_id
             
-            # Collect question generation info
             question_gen_info = {
                 'model_name': config.question_generation.litellm_config.model,
                 'similarity_threshold': config.question_generation.similarity_threshold,
@@ -389,21 +388,8 @@ def generate_questions(
                 'num_deduped': metrics['num_questions_deduped']
             }
             
-            # If using same repository as chunks, include chunker info
-            chunker_info = None
-            if (not config.question_generation.upload_config.hub_dataset_id or
-                config.question_generation.upload_config.hub_dataset_id ==
-                config.chunker_config.upload_config.hub_dataset_id):
-                chunker_info = {
-                    'chunker_name': config.chunker_config.chunker,
-                    'chunker_params': config.chunker_config.chunker_arguments
-                }
-
-            # Push dataset
             pusher.push_dataset(
                 hub_dataset_id=repository_id,
-                knowledgebase_path=None,
-                chunker_info=chunker_info,
                 train_path=config.question_generation.output_path,
                 question_gen_info=question_gen_info,
                 private=config.question_generation.upload_config.hub_private
@@ -468,10 +454,7 @@ def upload_to_hub(
         logger.error(f"Failed to upload to Hugging Face Hub: {str(e)}")
 
 def run_pipeline(config: PipelineConfig):
-    """
-    Run the QuicKB pipeline from `from_stage` up to and including `to_stage`.
-    The stages are defined by config.pipeline["from_stage"] and config.pipeline["to_stage"].
-    """
+    """Run the QuicKB pipeline."""
     from_stage = PipelineStage[config.pipeline["from_stage"]]
     to_stage = PipelineStage[config.pipeline["to_stage"]]
 
@@ -486,47 +469,54 @@ def run_pipeline(config: PipelineConfig):
     else:
         logger.info("Skipping CHUNK stage.")
 
-    # Load knowledgebase dataset if GENERATE or TRAIN stage is being run and dataset source is configured
-    if to_stage.value >= PipelineStage.GENERATE.value and config.question_generation and config.question_generation.input_dataset_config.dataset_source in ["hub", "local"]:
-        logger.info("Loading knowledgebase dataset for GENERATE/TRAIN stage.")
-        input_config = config.question_generation.input_dataset_config
-        if input_config.dataset_source == "hub":
-            logger.info(f"Loading knowledgebase dataset from Hub: {input_config.hub_dataset_id}")
-            kb_dataset = load_dataset_from_hub(input_config.hub_dataset_id, "knowledgebase")
-        elif input_config.dataset_source == "local":
-            local_kb_path = input_config.local_knowledgebase_path or config.chunker_config.output_path # Prioritize explicit path
-            logger.info(f"Loading knowledgebase dataset from local path: {local_kb_path}")
-            kb_dataset = load_dataset_from_local(local_kb_path)
-
-
     # 2. GENERATE
     if from_stage.value <= PipelineStage.GENERATE.value <= to_stage.value:
-        logger.info("Running GENERATE stage.")
-        # Pass kb_dataset directly (already loaded)
-        train_dataset, question_metrics = generate_questions(config, kb_dataset)
-    else:
-        logger.info("Skipping GENERATE stage.")
-        # Load train dataset based on training.train_dataset_config if needed for TRAIN stage
-        if (to_stage.value >= PipelineStage.TRAIN.value and
-                config.training and config.training.train_dataset_config.dataset_source == "hub"):
-            logger.info(f"Loading training dataset from Hub: {config.training.train_dataset_config.hub_dataset_id}")
-            train_dataset = load_dataset_from_hub(config.training.train_dataset_config.hub_dataset_id, "train")
-        elif (to_stage.value >= PipelineStage.TRAIN.value and
-              config.training and config.training.train_dataset_config.dataset_source == "local"): # Check training config for local path
-            train_dataset_config = config.training.train_dataset_config
-            local_train_path = train_dataset_config.local_train_dataset_path or config.question_generation.output_path # Prioritize explicit path
-            logger.info(f"Loading training dataset from local path: {local_train_path}")
-            train_dataset = load_dataset_from_local(local_train_path) # Use training dataset local path
+        # Load knowledgebase dataset if needed for GENERATE
+        if not kb_dataset:
+            input_config = config.question_generation.input_dataset_config
+            if input_config.dataset_source == "hub":
+                logger.info(f"Loading knowledgebase dataset from Hub: {input_config.knowledgebase_dataset_id}")
+                kb_dataset = load_dataset_from_hub(input_config.knowledgebase_dataset_id)
+            elif input_config.dataset_source == "local":
+                local_kb_path = input_config.local_knowledgebase_path or config.chunker_config.output_path
+                logger.info(f"Loading knowledgebase dataset from local path: {local_kb_path}")
+                kb_dataset = load_dataset_from_local(local_kb_path)
 
+        logger.info("Running GENERATE stage.")
+        train_dataset, question_metrics = generate_questions(config, kb_dataset)
 
     # 3. TRAIN
     if from_stage.value <= PipelineStage.TRAIN.value <= to_stage.value:
         logger.info("Running TRAIN stage.")
         if not config.training:
             raise ValueError("No training config found, cannot run TRAIN stage.")
+
+        train_config = config.training.train_dataset_config
+        
+        # Load datasets for training if needed
+        if train_config.dataset_source == "hub":
+            logger.info("Loading datasets from Hub for training...")
+            if not train_dataset:
+                logger.info(f"Loading training dataset from Hub: {train_config.train_dataset_id}")
+                train_dataset = load_dataset_from_hub(train_config.train_dataset_id)
+            if not kb_dataset:
+                logger.info(f"Loading knowledgebase dataset from Hub: {train_config.knowledgebase_dataset_id}")
+                kb_dataset = load_dataset_from_hub(train_config.knowledgebase_dataset_id)
+        else:  # local
+            logger.info("Loading datasets from local files for training...")
+            if not train_dataset:
+                train_path = train_config.local_train_path or config.question_generation.output_path
+                logger.info(f"Loading training dataset from local path: {train_path}")
+                train_dataset = load_dataset_from_local(train_path)
+            if not kb_dataset:
+                kb_path = train_config.local_knowledgebase_path or config.chunker_config.output_path
+                logger.info(f"Loading knowledgebase dataset from local path: {kb_path}")
+                kb_dataset = load_dataset_from_local(kb_path)
+
+        if not kb_dataset or not train_dataset:
+            raise ValueError("Failed to load required datasets for training")
+
         train_model(config, kb_dataset, train_dataset)
-    else:
-        logger.info("Skipping TRAIN stage.")
 
     logger.info("Pipeline complete!")
 
