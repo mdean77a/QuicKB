@@ -46,7 +46,7 @@ question_generation:
     dataset_source: "local"  # Options: "local", "hub"
     local_knowledgebase_path: "./output/knowledgebase.json"
     # Hub alternative:
-    # knowledgebase_dataset_id: "username/quickb-kb"
+    # knowledgebase_dataset_id: "AdamLucek/quickb-kb"
 
   # Performance settings
   max_workers: 150                    # Parallel question generation
